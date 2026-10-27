@@ -1,0 +1,24 @@
+{
+  "name": "jimbo-blog",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen:notes": "node scripts/gen-notes-index.mjs",
+    "dev": "npm run gen:notes && vuepress dev src",
+    "build": "npm run gen:notes && vuepress build src",
+    "clean-dev": "npm run gen:notes && vuepress dev src --clean-cache"
+  },
+  "devDependencies": {
+    "@vuepress/bundler-vite": "2.0.0-rc.31",
+    "@vuepress/plugin-feed": "2.0.0-rc.137",
+    "@vuepress/plugin-markdown-chart": "2.0.0-rc.137",
+    "@vuepress/plugin-slimsearch": "2.0.0-rc.137",
+    "mermaid": "^12.0.0",
+    "sass": "^1.80.0",
+    "sass-embedded": "^1.80.0",
+    "vue": "^3.5.0",
+    "vuepress": "2.0.0-rc.31",
+    "vuepress-theme-hope": "2.0.0-rc.110"
+  }
+}

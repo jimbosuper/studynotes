@@ -1,0 +1,269 @@
+/* ============ 首页：尺寸 ============ */
+
+/* hero 图：保留圆角 + 柔影 */
+.vp-hero-image {
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  object-fit: cover;
+}
+
+[data-theme="dark"] .vp-hero-image {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* feature 卡片：最后一行左对齐（尺寸用主题默认） */
+.vp-features {
+  place-content: stretch flex-start;
+  justify-content: flex-start;
+}
+
+/* 去掉卡片区顶部那条线，让卡片自己浮起来 */
+.vp-features:first-child {
+  border-top: 0;
+}
+
+/* ============ 极光背景（整页固定） ============ */
+
+.theme-container.home-aurora {
+  background-color: var(--vp-c-bg);
+  background-image:
+    linear-gradient(rgba(60, 60, 67, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60, 60, 67, 0.055) 1px, transparent 1px),
+    radial-gradient(closest-side, rgba(98, 220, 170, 0.28), transparent 72%),
+    radial-gradient(closest-side, rgba(120, 180, 255, 0.22), transparent 72%),
+    radial-gradient(closest-side, rgba(200, 150, 255, 0.16), transparent 72%);
+  background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat;
+  background-position: 0 0, 0 0, 0 6%, 100% -4%, 55% 104%;
+  background-size: 2rem 2rem, 2rem 2rem, 62vw 62vw, 58vw 58vw, 64vw 64vw;
+  background-attachment: fixed;
+}
+
+[data-theme="dark"] .theme-container.home-aurora {
+  background-color: var(--vp-c-bg);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(closest-side, rgba(110, 231, 183, 0.16), transparent 72%),
+    radial-gradient(closest-side, rgba(122, 184, 255, 0.14), transparent 72%),
+    radial-gradient(closest-side, rgba(196, 166, 255, 0.12), transparent 72%);
+}
+
+/* ============ 渐变标题 ============ */
+
+.vp-hero-title {
+  background: linear-gradient(92deg, #0f9d6b 0%, #2f7df6 55%, #8b5cf6 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="dark"] .vp-hero-title {
+  background: linear-gradient(92deg, #6ee7b7 0%, #7ab8ff 55%, #c4a6ff 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 手机端标题居中时也用同样的宽度策略 */
+#main-description {
+  letter-spacing: 0.01em;
+}
+
+/* ============ 按钮微动效 ============ */
+
+.vp-hero-action {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.vp-hero-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(60, 60, 67, 0.12);
+}
+
+.vp-hero-action.primary:hover {
+  box-shadow: 0 8px 22px rgba(62, 175, 124, 0.35);
+}
+
+/* ============ 玻璃质感卡片 ============ */
+
+.vp-feature-item {
+  border-radius: 0.85rem;
+  background-color: rgba(255, 255, 255, 0.62);
+  /* 用描边阴影代替 border，避免 2px 溢出把一行 4 张挤成 3 张 */
+  box-shadow:
+    0 0 0 1px var(--vp-c-border),
+    0 1px 2px rgba(60, 60, 67, 0.04);
+  backdrop-filter: blur(8px);
+
+  color: var(--vp-c-text);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.vp-feature-item .vp-feature-title {
+  color: var(--vp-c-text);
+}
+
+.vp-feature-item .vp-feature-details {
+  color: var(--vp-c-text-mute);
+}
+
+.vp-feature-item.link:hover {
+  transform: translateY(-4px);
+
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(62, 175, 124, 0.45),
+    0 14px 30px rgba(62, 175, 124, 0.16);
+}
+
+/* 主题默认 hover 会在右上角塞一个 ➜，有了浮起效果就不需要了 */
+.vp-feature-item.link:hover::before {
+  display: none;
+}
+
+[data-theme="dark"] .vp-feature-item {
+  background-color: rgba(255, 255, 255, 0.045);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .vp-feature-item.link:hover {
+  background-color: rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 0 0 1px rgba(110, 231, 183, 0.4),
+    0 14px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* ============ AI 应用卡片下方：单条分隔线 + 单列问答 ============ */
+/* 这些只作用于首页，别泄漏到笔记页 */
+
+.home-aurora #markdown-content {
+  margin-top: 0.75rem;
+  padding-top: 1.25rem;
+}
+
+.home-aurora #markdown-content > h2 {
+  font-size: 1.05rem !important;
+  line-height: 1.4;
+  border-bottom: none !important;
+  padding-bottom: 0.25rem;
+  margin: 0 0 0.6rem !important;
+}
+
+/* 主题默认给首个 h2 加了 60px 顶部内边距（锚点偏移），首页这里收小一点 */
+.home-aurora [vp-content]:not(.custom) #markdown-content > h2:first-child {
+  padding-top: 1rem !important;
+}
+
+.home-aurora #markdown-content > p {
+  font-size: 0.92rem !important;
+  line-height: 1.7 !important;
+  margin: 0 0 0.7rem !important;
+}
+
+/* ============ 文档页：侧边栏贴左、正文加宽、右侧目录 ============ */
+
+/* 侧边栏贴到最左（主题默认会把它推到与正文对齐的位置） */
+@media (min-width: 1440px) {
+  #app {
+    --sidebar-space: var(--sidebar-width);
+  }
+}
+
+/* 正文不要两端对齐：中文 justify 会在字间塞进大块空白 */
+[vp-content] #markdown-content > p,
+[vp-content] #markdown-content li,
+[vp-content] #markdown-content blockquote p,
+[vp-content] #markdown-content td,
+[vp-content] #markdown-content th {
+  text-align: start;
+  hyphens: none;
+}
+
+/* 笔记页第一个标题不要主题那套 60px 锚点内边距，避免开头空一大块 */
+.theme-container:not(.home-aurora) [vp-content] #markdown-content > h2:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* 右侧「此页内容」：桌面端固定到最右边，正文在「侧边栏 → 目录」之间居中 */
+@media (min-width: 1440px) {
+  .theme-container .vp-page {
+    /* 左侧让出侧边栏，右侧让出目录（16rem 宽 + 2rem 边距） */
+    padding-inline: var(--sidebar-space) 18rem;
+  }
+
+  #toc {
+    position: fixed;
+    inset-inline: auto 2rem;
+    top: calc(var(--navbar-height) + 2rem);
+
+    width: 16rem;
+    min-width: 0;
+    max-width: none;
+    max-height: calc(100vh - var(--navbar-height) - 4rem);
+
+    overflow-y: auto;
+  }
+
+  .vp-toc-wrapper {
+    max-height: calc(100vh - var(--navbar-height) - 8rem);
+  }
+
+  .vp-toc-item {
+    padding: 0 0.75rem;
+  }
+
+  .vp-toc-link {
+    font-size: 0.9rem;
+  }
+}
+
+/* 大屏再放宽目录 */
+@media (min-width: 1800px) {
+  .theme-container .vp-page {
+    padding-inline: var(--sidebar-space) 24rem;
+  }
+
+  #toc {
+    width: 22rem;
+  }
+
+  .vp-toc-link {
+    font-size: 0.95rem;
+  }
+}
+
+/* ============ 页脚：居中 ============ */
+
+.vp-footer-wrapper {
+  justify-content: center;
+}
+
+.vp-footer {
+  text-align: center;
+}
+
+/* 尊重系统的「减少动态效果」设置 */
+@media (prefers-reduced-motion: reduce) {
+  .vp-feature-item,
+  .vp-hero-action {
+    transition: none;
+  }
+
+  .vp-feature-item.link:hover,
+  .vp-hero-action:hover {
+    transform: none;
+  }
+}
