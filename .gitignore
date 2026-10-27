@@ -1,5 +1,6 @@
 node_modules/
 src/.vuepress/dist/
+.wrangler/
 src/.vuepress/.cache/
 src/.vuepress/.temp/
 *.log
