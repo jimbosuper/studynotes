@@ -3,20 +3,22 @@ import { navbar } from "./navbar.js";
 import { sidebar } from "./sidebar.js";
 
 export default hopeTheme({
-  hostname: "https://blog.jimbo.xxx",
+  hostname: "https://studynotes-90w.pages.dev",
   author: {
     name: "JimBo",
-    url: "https://blog.jimbo.xxx",
+    url: "https://studynotes-90w.pages.dev",
   },
 
   logo: "/avatar.png",
   favicon: "/avatar.png",
 
-  // 填 GitHub 仓库地址，例如 "https://github.com/yourname/blog"
-  repo: "",
-  docsRepo: "",
+  // 站点默认浅色：只有用户手动点右上角图标时才切到深色，不跟随系统
+  darkmode: "toggle",
+
+  repo: "https://github.com/jimbosuper/studynotes",
+  docsRepo: "https://github.com/jimbosuper/studynotes",
   docsDir: "src",
-  docsBranch: "main",
+  docsBranch: "master",
 
   navbar,
   sidebar,
@@ -48,7 +50,7 @@ export default hopeTheme({
     },
     seo: true,
     sitemap: {
-      hostname: "https://blog.jimbo.xxx",
+      hostname: "https://studynotes-90w.pages.dev",
     },
     feed: {
       rss: true,

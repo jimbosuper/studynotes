@@ -1,9 +1,5 @@
-node_modules/
-src/.vuepress/dist/
-.wrangler/
-src/.vuepress/.cache/
-src/.vuepress/.temp/
-*.log
 .DS_Store
-.env
-.env.*
+*.log
+.openchamber/
+
+# 站点工程的依赖与产物由 blog/.gitignore 负责
