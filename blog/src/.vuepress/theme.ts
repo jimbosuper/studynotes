@@ -15,9 +15,12 @@ export default hopeTheme({
   // 站点默认浅色：只有用户手动点右上角图标时才切到深色，不跟随系统
   darkmode: "toggle",
 
-  repo: "https://github.com/jimbosuper/studynotes",
+  // 不公开显示仓库入口（导航栏右上角的 GitHub 图标），
+  // 但保留 docsRepo 供每篇笔记底部的「编辑此页」使用
+  repo: "",
   docsRepo: "https://github.com/jimbosuper/studynotes",
-  docsDir: "src",
+  // 站点在仓库根下的 blog/ 目录，编辑链接要带上前缀
+  docsDir: "blog/src",
   docsBranch: "master",
 
   navbar,
