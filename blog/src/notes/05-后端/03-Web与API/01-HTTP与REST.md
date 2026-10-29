@@ -1,900 +1,836 @@
-# HTTP 与 RESTful API 设计
+# HTTP 与 REST
 
-## 一、工程案例：用 curl 定位一个 502：从 DNS、TLS、连接、超时到响应头
+HTTP 是客户端与服务端之间的请求—响应协议，规定报文如何书写、连接如何建立、结果如何表达；REST 是在 HTTP 之上组织资源的接口风格。两者共同解决跨系统调用的互操作问题，但不负责业务规则、消息可靠投递和实时双向通信。
 
-**场景**：`https://api.taskhub.example.com/v1/tasks` 在监控上间歇性返回 502，前端偶发「系统繁忙」。链路是云 LB → Nginx（10.0.1.10）→ 容器 `app:8080`（3 个副本）。运维的处理方式是「重启后端」，能好一阵，第二天又出现。
+---
 
-**产出**：一条从客户端到后端的分层定位路径、一份可复用的探针脚本、一张验收表，以及一组让停机不再产生 502 的配置。
+## 一、HTTP 与 REST 是什么
 
-**落盘文件**：`deploy/nginx/conf.d/app.conf`、`src/main/resources/application.yml`、`deploy/k8s/deployment.yaml`、`scripts/http-probe.sh`。
+### 1.1 核心概念
 
-**环境**：
+HTTP 的核心模型是**一次请求对应一次响应**。客户端构造请求行、请求头、请求体，服务端解析后返回状态行、响应头、响应体。协议本身不保存上一次请求的上下文，因此称为无状态；登录态、分页位置、购物车内容都必须由 Cookie、令牌或请求参数额外携带。
 
-| 角色 | 位置 | 版本 |
+REST 不是协议，而是一组架构约束。它要求客户端与服务端分离、通信无状态、响应可缓存、接口统一、系统分层，并可选地支持按需下发代码。统一接口进一步展开为四条：每个资源有唯一标识；通过表示操作资源；消息自描述；超媒体驱动应用状态。满足全部约束成本很高，工程上通常只落实资源命名、方法语义和状态码这三项。
+
+| 概念 | 本质 | 观察位置 |
 |---|---|---|
-| 客户端 | 本机 macOS | curl 8.x |
-| 入口 | `api.taskhub.example.com` | 云 LB + Nginx 1.24 |
-| 后端 | `app:8080`，3 副本 | Spring Boot 3.x |
+| 资源 | 被操作的对象，如订单、用户 | URL 路径 |
+| 表示 | 资源在某一时刻的序列化形态 | 响应体与 `Content-Type` |
+| 方法 | 对资源执行的动作语义 | 请求行 |
+| 状态码 | 本次请求的处理结果分类 | 状态行 |
+| 头字段 | 描述报文、连接、缓存、认证的元数据 | 请求头与响应头 |
+| 连接 | 承载报文的传输通道 | TCP/TLS 或 QUIC |
 
-### 1.1 一次带计时的请求：先把「哪一层慢、哪一层错」分开
+HTTP 不解决三件事：业务状态如何流转、跨请求的事务如何保证、消息在断线后如何补发。把这三件事误当成协议能力，是接口设计中最常见的起点错误。
+
+> **注意**：REST 的“无状态”指服务端不在两次请求之间保存会话上下文，不表示客户端不能保存令牌。把 Session 存进服务端内存会让服务端保存会话状态，严格来说违背无状态约束；工程上常用共享存储加 Cookie 做折中，但这不是纯 REST 形态。
+
+### 1.2 在技术栈中的位置
+
+HTTP 位于应用层。HTTP/1.1 与 HTTP/2 依赖 TCP，HTTP/3 改用基于 UDP 的 QUIC；TLS 在 HTTP/1.1 与 HTTP/2 中位于 TCP 之上，在 HTTP/3 中已集成进 QUIC 握手。HTTP 之上才是 REST、GraphQL、gRPC、WebSocket 与 SSE 这些接口形态。
+
+| 技术 | 与 HTTP 的关系 | 典型职责 |
+|---|---|---|
+| REST | 使用 HTTP 方法与状态码 | 资源型接口，通用性最好 |
+| GraphQL | 通常以单个 `POST` 端点承载 | 由客户端声明字段，减少多次往返 |
+| gRPC | 独立于 HTTP 语义，可跑在 HTTP/2 上 | 二进制 RPC，强类型、高性能 |
+| WebSocket | 用 HTTP 完成一次协议升级 | 握手后转为双向帧通信 |
+| SSE | 复用普通 HTTP 响应流 | 服务端单向推送文本事件 |
+
+反向代理、API 网关和 CDN 都工作在 HTTP 层。它们会改写头字段、缓存响应、限制请求体大小、设置超时，因此“直连后端正常、经过网关失败”是排障中的常见分叉点。
+
+### 1.3 一次完整交互
+
+一次页面请求要经过域名解析、连接建立、报文交换和渲染四个阶段。下图把一次带网关和数据库的读取请求展开：
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器
+    participant R as DNS 解析器
+    participant G as 网关或 Nginx
+    participant A as 应用服务
+    participant D as 数据库
+    B->>R: 查询 api.example.com
+    R-->>B: 返回 A 记录
+    B->>G: TCP 握手并完成 TLS 握手
+    B->>G: GET /api/orders?limit=20
+    G->>A: 反向代理转发请求
+    A->>D: 执行 SELECT
+    D-->>A: 返回结果集
+    A-->>G: 200 OK + JSON + ETag
+    G-->>B: 压缩后的响应
+    B->>B: 解析 JSON 并更新页面
+    Note over B,G: 任一环节超时都表现为页面持续等待
+```
+
+| 阶段 | 主要耗时来源 | 观察手段 |
+|---|---|---|
+| DNS | 递归查询、缓存未命中 | `dig`、`nslookup` |
+| TCP | 往返时延、丢包重传 | `curl -w` 的 `time_connect` |
+| TLS | 证书链、密钥交换、OCSP | `curl -v`、`openssl s_client` |
+| 首字节 | 排队、鉴权、数据库慢查询 | `time_starttransfer`、网关日志 |
+| 内容传输 | 响应体大小、带宽、压缩 | `size_download`、`Content-Encoding` |
+| 渲染 | 前端脚本、图片、布局 | 浏览器 Performance 面板 |
+
+排障时先确定停在哪一段，再进入对应层。只看到“页面转圈”就往数据库查，往往会绕开真正的瓶颈。
+
+---
+
+## 二、报文与语义结构
+
+### 2.1 请求报文
+
+一个带 JSON 请求体的创建请求如下：
+
+```http
+POST /api/orders?dry_run=false HTTP/1.1
+Host: api.example.com
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.example
+Content-Type: application/json
+Accept: application/json
+Idempotency-Key: 9f1c2d7e-4a6b-4c8d-9e0f-123456789abc
+Content-Length: 28
+Connection: keep-alive
+
+{"sku":"A-100","quantity":2}
+```
+
+请求报文由四段组成：请求行、请求头、空行、请求体。请求行包含方法、目标路径和协议版本；请求头每行一个 `名称: 值`；空行是头与体的分界；请求体长度由 `Content-Length` 或分块编码决定。
+
+| 头字段 | 作用 | 常见值 |
+|---|---|---|
+| `Host` | 指定目标主机与端口，虚拟主机依赖它路由 | `api.example.com` |
+| `Content-Type` | 声明请求体的媒体类型 | `application/json` |
+| `Accept` | 声明客户端能处理的响应类型 | `application/json` |
+| `Authorization` | 携带认证凭据 | `Bearer <token>` |
+| `Cookie` | 浏览器自动携带的会话数据 | `session=abc123` |
+| `Idempotency-Key` | 标识一次可重试的写操作 | 客户端生成的 UUID |
+| `If-None-Match` | 条件请求，携带上次的 ETag | `"7c9e1a"` |
+| `Origin` | 跨源请求的来源标识 | `https://app.example.com` |
+
+请求体并非所有方法都必须存在。`GET` 携带请求体在规范中没有定义语义，部分代理和缓存会直接丢弃，因此查询条件应放查询字符串；条件复杂到 URL 放不下时，改用 `POST /orders/search` 并在契约中说明它只读。
+
+> **注意**：`Content-Length` 表示字节数而不是字符数。包含中文的 JSON 按 UTF-8 编码后，一个汉字通常占三个字节，手工计算长度极易出错，应交给 HTTP 客户端生成。
+
+### 2.2 响应报文
+
+创建成功后的响应：
+
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+Location: /api/orders/A100
+ETag: "7c9e1a"
+Cache-Control: no-store
+Set-Cookie: session=abc123; HttpOnly; Secure; SameSite=Lax
+
+{"id":"A100","status":"pending","total_cents":19900}
+```
+
+响应报文同样由四段组成。状态行包含协议版本、三位状态码和原因短语；原因短语只是给人看的描述，客户端判断结果必须依据状态码。
+
+| 头字段 | 作用 | 常见值 |
+|---|---|---|
+| `Content-Type` | 响应体的媒体类型与字符集 | `application/json; charset=utf-8` |
+| `Content-Length` | 响应体字节数 | `58` |
+| `Location` | 创建结果或重定向的目标 | `/api/orders/A100` |
+| `ETag` | 当前表示版本的标识 | `"7c9e1a"` |
+| `Cache-Control` | 缓存策略 | `no-store`、`max-age=3600` |
+| `Set-Cookie` | 下发会话 Cookie | 含 `HttpOnly`、`Secure` |
+| `Vary` | 声明缓存键随哪些请求头变化 | `Accept-Encoding`、`Origin` |
+| `Retry-After` | 限流或维护时建议的重试等待 | 秒数或 HTTP 日期 |
+
+### 2.3 方法与状态码语义
+
+方法表达动作意图，安全性和幂等性决定它能否被预取、缓存或自动重试。
+
+| 方法 | 安全 | 幂等 | 典型用途 |
+|---|---|---|---|
+| `GET` | 是 | 是 | 读取列表、详情、搜索 |
+| `HEAD` | 是 | 是 | 只取响应头，检查存在性与缓存 |
+| `POST` | 否 | 否 | 创建资源、执行有副作用的动作 |
+| `PUT` | 否 | 是 | 用请求体整体替换资源 |
+| `PATCH` | 否 | 不一定 | 部分更新字段 |
+| `DELETE` | 否 | 是 | 删除资源 |
+| `OPTIONS` | 是 | 是 | 查询支持的方法，或处理 CORS 预检 |
+
+状态码按首位数字分成五段，每段表达不同的处理方向。
+
+| 段 | 含义 | 常见状态码 |
+|---|---|---|
+| `2xx` | 请求已成功处理 | `200`、`201`、`204`、`206` |
+| `3xx` | 需要进一步动作或命中缓存 | `301`、`302`、`304`、`307`、`308` |
+| `4xx` | 请求本身有问题 | `400`、`401`、`403`、`404`、`409`、`412`、`422`、`429` |
+| `5xx` | 服务端处理失败 | `500`、`502`、`503`、`504` |
+
+几个容易混淆的组合：
+
+| 状态码 | 准确含义 | 客户端动作 |
+|---|---|---|
+| `401` | 未认证，或凭据无效、过期 | 跳登录页或刷新令牌 |
+| `403` | 已认证但无权限 | 提示申请权限，不要反复登录 |
+| `400` | 请求语法或参数格式错误 | 修正请求，不重试 |
+| `409` | 与资源当前状态冲突 | 读取最新状态后决定 |
+| `412` | 条件请求的前置条件不成立 | 重新获取资源再提交 |
+| `422` | 语法正确但业务校验不通过 | 展示字段级错误 |
+| `429` | 触发限流 | 按 `Retry-After` 退避 |
+| `502` | 网关从上游收到无效响应 | 查上游进程与端口 |
+| `504` | 网关等待上游超时 | 查慢查询、连接池、下游超时 |
+
+`401` 响应应带 `WWW-Authenticate` 头，告诉客户端使用哪种认证方案；`429` 应带 `Retry-After`；`503` 也可带 `Retry-After` 表示维护窗口。缺少这些头，客户端只能盲目重试。
+
+重定向要区分方法与请求体：`301` 与 `302` 在历史上可能把 `POST` 改成 `GET`，`307` 与 `308` 则明确保留原方法和请求体。登录跳转、HTTPS 跳转、尾斜杠跳转都要确认方法是否被改写，以及 Cookie 是否会随新地址发送。
+
+### 2.4 报文边界与传输编码
+
+接收方必须知道一个报文在哪里结束，否则会把下一个响应误读成当前响应体。HTTP/1.1 提供三种边界方式：
+
+| 机制 | 边界表示 | 适用场景 |
+|---|---|---|
+| `Content-Length` | 明确的字节数 | 长度已知的定长响应 |
+| `Transfer-Encoding: chunked` | 每个分块前写长度，末块长度为 0 | 流式生成、长度未知 |
+| 连接关闭 | 服务端关闭 TCP 连接作为结束 | HTTP/1.0 或无长度信息时 |
+| HTTP/2 与 HTTP/3 | `END_STREAM` 标志 | 多路复用下的流式传输 |
+
+`HEAD` 响应、`204 No Content`、`304 Not Modified` 都不携带响应体。代理若给这些响应补上 `Content-Length` 或写入内容，会破坏客户端解析。
+
+> **安全警告**：请求同时带 `Content-Length` 和 `Transfer-Encoding`，或两个头取值互相矛盾时，前端代理与后端可能采用不同边界，形成请求走私。生产网关应拒绝这类报文，并统一由一层负责规范化。
+
+---
+
+## 三、HTTP 报文的观察方法
+
+### 3.1 本地服务与 curl
+
+不依赖框架，用 Python 自带静态服务器就能观察完整报文。
 
 ```bash
-curl -sS -o /dev/null -D - \
-  -w '\ncode=%{http_code} dns=%{time_namelookup} conn=%{time_connect} tls=%{time_appconnect} ttfb=%{time_starttransfer} total=%{time_total}\n' \
-  https://api.taskhub.example.com/v1/tasks
+# ========== 准备静态文件 ==========
+# 建目录并写入一个最小页面
+mkdir -p /tmp/http-demo && cd /tmp/http-demo
+printf '<h1>hello</h1>\n' > index.html
+
+# ========== 启动服务 ==========
+# 绑定回环地址，避免暴露到局域网
+python3 -m http.server 8000 --bind 127.0.0.1
+
+# ========== 基本请求 ==========
+# 另开终端，-i 同时打印响应头
+curl -i http://127.0.0.1:8000/
+
+# 只发 HEAD，观察响应头而不下载正文
+curl -I http://127.0.0.1:8000/
+
+# 请求不存在的路径，观察 404
+curl -i http://127.0.0.1:8000/nope
+
+# ========== 方法探测 ==========
+# 静态服务器未实现 OPTIONS，预期返回 501
+curl -i -X OPTIONS http://127.0.0.1:8000/
+
+# ========== 构造 POST ==========
+# -d 默认把 Content-Type 设为表单类型
+curl -i -X POST http://127.0.0.1:8000/ \
+  -H 'Content-Type: application/json' \
+  -d '{"sku":"A-100","quantity":2}'
 ```
+
+`curl -i` 的输出类似：
 
 ```text
-HTTP/2 502
-server: nginx
-date: Wed, 21 Oct 2026 02:14:33 GMT
-content-type: text/html
-content-length: 157
+HTTP/1.0 200 OK
+Server: SimpleHTTP/0.6 Python/3.12.4
+Date: Tue, 27 Oct 2026 08:00:00 GMT
+Content-type: text/html
+Content-Length: 15
+Last-Modified: Tue, 27 Oct 2026 07:59:00 GMT
 
-code=502 dns=0.004 conn=0.021 tls=0.048 ttfb=0.052 total=0.053
+<h1>hello</h1>
 ```
 
-| 字段 | 读法 | 本例含义 |
+首行给出协议版本与状态码，随后是响应头，空行之后是正文。Python 的 `http.server` 默认以 HTTP/1.0 应答，且未实现 `OPTIONS`，因此方法探测返回 `501 Unsupported method`；这正好说明“服务端支持哪些方法”取决于实现，而不是协议强制。
+
+```bash
+# ========== 观察耗时构成 ==========
+# 分别输出 DNS、连接、TLS、首字节和总耗时
+curl -sS -o /dev/null -w \
+  'dns=%{time_namelookup} connect=%{time_connect} tls=%{time_appconnect} ttfb=%{time_starttransfer} total=%{time_total}\n' \
+  https://example.com/
+
+# ========== 指定协议版本 ==========
+# 强制 HTTP/1.1，便于对比头字段
+curl -sS -o /dev/null --http1.1 -w '%{http_version}\n' https://example.com/
+
+# 协商 HTTP/2，观察多路复用是否生效
+curl -sS -o /dev/null --http2 -w '%{http_version}\n' https://example.com/
+
+# ========== 解析到指定地址 ==========
+# 绕过 DNS，把域名指向测试机，验证网关配置
+curl -i --resolve api.example.com:443:127.0.0.1 https://api.example.com/api/orders
+```
+
+| 参数 | 观察内容 | 常见用途 |
 |---|---|---|
-| `time_namelookup` | 到 DNS 返回 | 4 ms，解析正常 |
-| `time_connect` | TCP 握手完成 | 21 ms，443 可达 |
-| `time_appconnect` | TLS 握手完成 | 48 ms，证书通过 |
-| `time_starttransfer` | 首字节到达 | 52 ms |
-| `time_total` | 请求结束 | 53 ms |
+| `-i` | 响应头与响应体 | 确认状态码、`Content-Type`、缓存头 |
+| `-I` | 只发 `HEAD` | 检查资源是否存在、是否被缓存 |
+| `-v` | 连接、TLS、请求头、响应头 | 排查握手与代理改写 |
+| `-N` | 关闭输出缓冲 | 观察 SSE 等流式响应 |
+| `-w` | 输出耗时与传输统计 | 定位慢在 DNS、连接还是首字节 |
+| `--resolve` | 把域名固定到指定 IP | 绕过 DNS 验证目标节点 |
 
-三个判读结论：
-
-1. **DNS、TCP、TLS 全部在 50 ms 内完成**，502 不是网络层问题，是应用层问题。
-2. **首字节只比 TLS 完成晚 4 ms**，响应不是后端算出来的，是入口自己生成的错误页。
-3. `server: nginx` + `content-type: text/html` + 157 字节，是 Nginx 的标准 502 页，不是后端的 JSON 错误体。
-
-### 1.2 DNS：解析结果与绕过解析
-
-502 与 DNS 无关，但「间歇性」必须排除「解析到已下线 IP」这一种可能。
+### 3.2 连接与 TLS 观察
 
 ```bash
-dig +short api.taskhub.example.com
-# 203.0.113.10
-# 203.0.113.11
+# ========== 查看握手与报文方向 ==========
+# -o /dev/null 丢弃正文，只保留诊断信息
+curl -v https://example.com/ -o /dev/null
 
-dig +short api.taskhub.example.com @8.8.8.8
-# 203.0.113.10
-# 203.0.113.11
-```
-
-两个 A 记录、本地与公共 DNS 结果一致，说明没有解析漂移。若怀疑某个 IP 有问题，用 `--resolve` 固定解析，绕开 DNS 直接打某一台：
-
-```bash
-curl -sS -o /dev/null -w '%{http_code}\n' \
-  --resolve api.taskhub.example.com:443:203.0.113.10 \
-  https://api.taskhub.example.com/v1/tasks
-```
-
-`--resolve` 只改「域名到 IP」这一步，Host 头与 SNI 仍然是原域名，因此能精确验证「是不是某一台入口坏了」。
-
-### 1.3 TLS：握手与证书链
-
-```bash
-echo | openssl s_client -connect api.taskhub.example.com:443 \
-  -servername api.taskhub.example.com 2>/dev/null \
+# ========== 查看证书链与有效期 ==========
+# 只取证书部分，输出主题、签发者与起止时间
+openssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null \
   | openssl x509 -noout -subject -issuer -dates
+
+# ========== 检查 ALPN 协商结果 ==========
+# 输出服务端支持的协议列表，h2 表示 HTTP/2
+openssl s_client -connect example.com:443 -servername example.com -alpn h2,http/1.1 </dev/null 2>/dev/null \
+  | grep -i 'ALPN protocol'
 ```
 
-```text
-subject=CN = api.taskhub.example.com
-issuer=C = US, O = Let's Encrypt, CN = R11
-notBefore=Sep 12 00:00:00 2026 GMT
-notAfter=Dec 11 23:59:59 2026 GMT
-```
+`curl -v` 的输出按符号区分方向：`*` 是客户端诊断信息，`>` 是发往服务端的请求行与请求头，`<` 是收到的状态行与响应头。TLS 握手阶段会打印协议版本、密码套件和证书校验结果，证书过期或域名不匹配会在这里直接报错。
 
-证书在有效期内、CN 与访问域名一致、链完整，TLS 层可以排除。`-servername` 不能省：一台 Nginx 上挂多个域名时，不带 SNI 会拿到默认站点的证书，误判成「证书不匹配」。
+### 3.3 浏览器与网关观察
 
-### 1.4 HTTP 层：响应头里的证据
+浏览器开发者工具的 Network 面板把一次请求拆成排队、DNS、连接、TLS、等待、下载六段。勾选 `Preserve log` 可以看到跳转前的请求，勾选 `Disable cache` 可以排除缓存干扰；右键请求选择 `Copy as cURL` 能把浏览器实际发送的头字段完整复制出来，比手工复现可靠。
 
-带上一个自定义请求 ID，再看响应头里有没有它：
-
-```bash
-curl -sS -D - -o /dev/null \
-  -H 'X-Request-Id: probe-1021' \
-  https://api.taskhub.example.com/v1/tasks
-```
-
-```text
-HTTP/2 502
-server: nginx
-x-request-id: probe-1021
-x-upstream-status: 502
-content-type: text/html
-```
-
-`x-request-id` 被原样带回，说明请求确实进了 Nginx；`x-upstream-status: 502` 说明 Nginx 认为上游返回了 502。接着去后端日志里搜这个 ID：
-
-```bash
-kubectl logs -l app=taskhub --since=10m | grep probe-1021
-# 无输出
-```
-
-后端没有这条记录，结论收窄为：**请求没有到达应用，或者到达时应用已经在关闭过程中**。
-
-### 1.5 后端：端口、健康检查与 Nginx 错误日志
-
-在 Nginx 主机上确认「能不能连上、连上后多久回」：
-
-```bash
-getent ahostsv4 app | awk '{print $1}' | sort -u
-# 10.0.3.24
-# 10.0.3.25
-# 10.0.3.26
-
-# 解析出三个 IP 就逐个直连；只 curl 域名的话每次只会打到其中一台
-for ip in $(getent ahostsv4 app | awk '{print $1}' | sort -u); do
-  curl -sS -o /dev/null --max-time 2 \
-    -w "$ip health=%{http_code} ttfb=%{time_starttransfer}\n" \
-    "http://$ip:8080/actuator/health"
-done
-# 10.0.3.24 health=200 ttfb=0.012
-# 10.0.3.25 health=200 ttfb=0.014
-# 10.0.3.26 health=200 ttfb=0.011
-
-ss -tnp state established '( dport = :8080 )' | head
-#  ESTAB 0 0 10.0.1.10:51234 10.0.3.24:8080
-#  ESTAB 0 0 10.0.1.10:51235 10.0.3.24:8080
-```
-
-三条副本都健康、端口可达、已有长连接。这时 502 只可能发生在「连接建立之后、响应头返回之前」。Nginx 的 `error.log` 会给出一句精确的短语：
-
-```bash
-sudo grep -E 'upstream|502' /var/log/nginx/error.log | tail -5
-```
-
-```text
-2026/10/21 10:14:33 [error] 812#812: *9931 upstream prematurely closed connection
-while reading response header from upstream, client: 203.0.113.7,
-request: "GET /v1/tasks HTTP/2.0", upstream: "http://10.0.3.24:8080/v1/tasks"
-```
-
-| `error.log` 短语 | 含义 | 下一步 |
+| 面板字段 | 含义 | 排障价值 |
 |---|---|---|
-| `connect() failed (111: Connection refused)` | 端口没人监听 | 查进程、容器端口、`server.port` |
-| `upstream prematurely closed connection while reading response header` | 连上了，对端在读响应头前关闭 | 进程退出、崩溃、复用到已关闭的连接 |
-| `upstream timed out (110: Connection timed out) while reading response header` | 连上了但迟迟不回 | 线程池满、慢查询、下游阻塞 |
-| `no live upstreams` | 所有后端被健康检查摘除 | 健康检查路径与阈值 |
-| `SSL_do_handshake() failed` | 回源 TLS 失败 | 回源证书、SNI、协议版本 |
+| `Status` | 状态码，括号内可能是缓存来源 | 区分 `200`、`304`、`from disk cache` |
+| `Protocol` | `http/1.1`、`h2`、`h3` | 判断是否走了预期协议 |
+| `Remote Address` | 实际连接的 IP 与端口 | 确认是否命中测试节点 |
+| `Timing` | 各阶段耗时 | 定位 DNS、TLS 或首字节瓶颈 |
+| `Response Headers` | 服务端返回的全部头 | 查 CORS、缓存、`Set-Cookie` |
 
-本例落在第二种：`prematurely closed`。它不是超时，也不是拒绝连接，而是「TCP 已建立、对端主动关了」。
-
-### 1.6 根因：滚动发布时被复用的连接
-
-对照发布记录，10:14:28 有一次滚动更新，出问题的 `10.0.3.24` 正是当时正在退出的副本。过程是：
-
-1. Nginx 的 upstream 配了 `keepalive 32`，与 `10.0.3.24:8080` 之间长期保持空闲连接。
-2. 副本收到 SIGTERM，Spring Boot 按默认策略立即关闭上下文：Tomcat 停止监听，并关掉包括空闲 keepalive 在内的连接，不等待在途请求。
-3. Nginx 从连接池里取出一条「看起来还活着」的连接发请求，写出去后对端已关闭，读响应头时得到 EOF → 502。
-4. 重启后端后连接池重建，所以「好一阵」。
-
-三处一起改，缺一处都还会偶发。下面是最终配置，其中请求 ID 与上游状态两行是 1.4 依赖的，必须带 `always`，否则 5xx 响应上不会出现：
+网关侧的日志能补上浏览器看不到的上游信息。Nginx 可配置如下格式：
 
 ```nginx
-# deploy/nginx/conf.d/app.conf
-# 客户端带了就沿用，没带就由 Nginx 生成，响应头与上游日志用同一个值
-map $http_x_request_id $req_id {
-    default $http_x_request_id;
-    ""      $request_id;
-}
-
-upstream app_backend {
-    server app:8080;
-    keepalive 32;
-}
+# ========== 记录上下游状态与耗时 ==========
+# $status 是返回给客户端的状态码，$upstream_status 是上游返回的状态码
+log_format api '$remote_addr "$request" status=$status upstream=$upstream_status '
+               'rt=$request_time urt=$upstream_response_time '
+               'rid=$http_x_request_id';
 
 server {
+    listen 80;
+    server_name api.example.com;
+
+    # 使用上面定义的格式记录上下游状态
+    access_log /var/log/nginx/api.log api;
+
     location /api/ {
-        proxy_pass http://app_backend;
-        proxy_http_version 1.1;              # keepalive 要求 1.1
-        proxy_set_header Connection "";      # 清掉 close，才能复用
-        proxy_set_header X-Request-Id $req_id;
-
-        proxy_connect_timeout 2s;
-        proxy_send_timeout    10s;
-        proxy_read_timeout    10s;
-
-        # error 含连不上、写失败、读响应头失败；timeout 含读写超时。
-        # 默认只重试幂等方法，POST 要开 non_idempotent 才会被重试
-        proxy_next_upstream error timeout;
-        proxy_next_upstream_tries 2;
-
-        add_header X-Request-Id $req_id always;            # 502 时也要带上
-        add_header X-Upstream-Status $upstream_status always;
+        # 把请求 ID 传给上游，便于串联应用日志
+        proxy_set_header X-Request-ID $request_id;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://127.0.0.1:8080;
     }
 }
 ```
 
-```yaml
-# src/main/resources/application.yml：让进程把在途请求处理完再退出
-server:
-  shutdown: graceful
-spring:
-  lifecycle:
-    timeout-per-shutdown-phase: 30s
-```
+一行正常日志类似 `status=200 upstream=200 rt=0.032 urt=0.028`。`status=502 upstream=502` 说明上游返回了错误；`status=504` 且 `urt` 接近超时阈值，说明上游处理过慢；`status=499` 是客户端在服务端响应前主动断开，常见于前端超时或用户刷新。
 
-```yaml
-# deploy/k8s/deployment.yaml：先摘流量，再发 SIGTERM
-lifecycle:
-  preStop:
-    exec:
-      command: ["sh", "-c", "sleep 5"]   # 等 Endpoints 摘除传播到入口
-terminationGracePeriodSeconds: 40        # 必须大于 preStop + 关闭超时
-```
+---
 
-> ⚠️ `proxy_next_upstream` 加 `http_502` 能让「上游明确回了 502」也对用户透明，但它针对的是响应码，不是连接。Nginx 默认不重试 POST 等非幂等方法，一旦有人补了 `non_idempotent`，下单、支付就会被重放，变成重复创建。正确做法是接口本身带幂等键，而不是让网关盲重试。
+## 四、连接、缓存与状态机制
 
-### 1.7 复现与验证
+### 4.1 连接复用与协议版本
 
-修复前，用两个终端把 502 打成可观测的比例：一个负责触发滚动发布，另一个在发布窗口内持续打请求。
+HTTP/1.0 默认每次请求后关闭连接；HTTP/1.1 默认保持连接，通过 `Connection: keep-alive` 复用同一个 TCP 通道。复用省掉了重复握手，但同一连接上的响应仍按顺序返回，前一个响应慢会阻塞后面的请求。
 
-```bash
-# 终端 A：触发滚动发布
-kubectl rollout restart deploy/taskhub
-```
-
-```bash
-# 终端 B：发布期间持续打 300 次，按状态码计数
-for i in $(seq 1 300); do
-  curl -sS -o /dev/null -w '%{http_code}\n' \
-    --max-time 5 https://api.taskhub.example.com/v1/tasks
-done | sort | uniq -c
-#  287 200
-#   13 502
-```
-
-改完配置后重复同一过程，同样的 300 次请求应当一个 5xx 都没有：
-
-```bash
-# 终端 A
-kubectl rollout restart deploy/taskhub
-
-# 终端 B
-for i in $(seq 1 300); do
-  curl -sS -o /dev/null -w '%{http_code}\n' \
-    --max-time 5 https://api.taskhub.example.com/v1/tasks
-done | sort | uniq -c
-#  300 200
-```
-
-仍出现 502 就回到 1.5 对一遍 `error.log` 的短语：`prematurely closed` 说明预停机时间还不够（把 `preStop` 的 `sleep 5` 加大），`timed out` 说明问题在耗时而不是停机。
-
-### 1.8 验收表
-
-| # | 检查项 | 命令或检查 | 通过标准 |
+| 版本 | 传输层 | 并发与压缩 | 典型特征 |
 |---|---|---|---|
-| 1 | 解析稳定 | `dig +short <域名>` 连查 3 次 | 结果集一致，无已下线 IP |
-| 2 | 证书有效 | `openssl s_client -connect <域名>:443 -servername <域名>` | `notAfter` 未过期，CN 匹配 |
-| 3 | 入口计时 | `curl -w '%{time_starttransfer}'` | 正常请求 ttfb 小于 200 ms |
-| 4 | 请求可追踪 | 响应头含 `x-request-id`，后端日志能搜到 | 两端 ID 一致 |
-| 5 | 后端直连 | 逐个 Pod IP `curl http://<ip>:8080/actuator/health` | 200，且 3 个副本都通 |
-| 6 | 错误日志无残留 | `grep prematurely /var/log/nginx/error.log` | 滚动发布期间无新增 |
-| 7 | 滚动发布零 502 | 发布期间 300 次请求统计 | 无 5xx |
-| 8 | 超时配置合理 | `nginx -T` 查看 `proxy_read_timeout` | 大于上游 P99 耗时，且小于客户端超时 |
-| 9 | 优雅停机生效 | 发布时观察日志 `Commencing graceful shutdown` | 在途请求完成后再退出 |
+| HTTP/1.0 | TCP | 无多路复用，无头压缩 | 每次请求新建连接 |
+| HTTP/1.1 | TCP | 无多路复用，无头压缩 | 持久连接、分块传输 |
+| HTTP/2 | TCP | 多流复用，HPACK | 单连接并发、服务端推送已弱化 |
+| HTTP/3 | QUIC/UDP | 多流复用，QPACK | 避免 TCP 层队头阻塞，握手更快 |
 
-### 1.9 固化成脚本
+HTTP/2 解决了 HTTP 层的队头阻塞，但所有流仍共享一条 TCP 连接，丢包时内核要按序重传，传输层仍会阻塞。HTTP/3 把流搬到 QUIC 上，单个流丢包不影响其他流，这也是弱网环境下它更有优势的原因。
 
-```bash
-#!/usr/bin/env bash
-# scripts/http-probe.sh <url>：四层探针，把「哪一层坏了」一次说清
-# 依赖：dig、nc、openssl、curl、grep
-set -uo pipefail
-url="${1:?用法: http-probe.sh https://host/path}"
-scheme="${url%%://*}"
-authority="${url#*://}"; authority="${authority%%/*}"
-host="${authority%%:*}"; port="${authority##*:}"
-[[ "$port" == "$authority" ]] && port=$([[ "$scheme" == https ]] && echo 443 || echo 80)
+> **注意**：浏览器只会在 TLS 之上通过 ALPN 协商 HTTP/2，明文 `h2c` 主要存在于内网服务之间。用 `curl --http2` 测试 HTTPS 地址才会真正走 ALPN。
 
-echo "① DNS"
-dig +short "$host" | sed 's/^/   /'
-dig +short "$host" | grep -q . || { echo "   没有解析结果，停在这一层"; exit 1; }
+### 4.2 缓存与条件请求
 
-echo "② TCP"
-nc -z -w 2 "$host" "$port" || { echo "   ${host}:${port} 不通，停在这一层"; exit 1; }
-echo "   ${host}:${port} open"
-
-echo "③ TLS"
-if [[ "$scheme" == https ]]; then
-  tls=$(echo | openssl s_client -connect "${host}:${port}" -servername "$host" 2>/dev/null)
-  echo "$tls" | openssl x509 -noout -subject -dates 2>/dev/null | sed 's/^/   /'
-  grep -q 'Verify return code: 0' <<<"$tls" || echo "   证书校验未通过，看上面的 subject/dates"
-else
-  echo "   跳过（非 https）"
-fi
-
-echo "④ HTTP"
-curl -sS -o /dev/null -D /tmp/probe.h -w '   code=%{http_code} ttfb=%{time_starttransfer}s\n' "$url"
-grep -iE '^(server|x-request-id|x-upstream-status|location|cache-control):' /tmp/probe.h | sed 's/^/   /' || true
-```
-
-四层里任何一层失败就停在那层，不要跳过去猜下一层。
-
----
-
-## 二、高频问答：会卡住你的地方，也是面试最常问的
-
-### 2.1 502 与 504 混为一谈，一律重启后端
-
-**现场**
-
-`curl -w '%{http_code} %{time_starttransfer}'`；Nginx `error.log` 里 `prematurely closed` 与 `timed out` 是两条不同分支。
-
-**要点**
-
-- 502 是上游返回了非法响应或连接被提前关闭；504 是上游在超时时间内没回，一个查"进程与连接"，一个查"耗时与容量"。
-- 重启只能治"进程已经坏了"，治不了"连接池里握着已关闭的连接"和"线程池被慢查询占满"，所以总是好一阵又犯。
-- 核实靠两个证据对齐：入口的 ttfb 是否接近超时阈值，加 Nginx 错误日志的具体短语。
-
-**追问**
-
-- 两种错分别该盯哪句日志？→ `prematurely closed`/`connect() failed` 查进程与连接，`upstream timed out` 查耗时与容量。
-- 为什么重启能好一阵？→ 连接池重建，旧连接被换掉，触发条件还在（见 1.6）。
-- 网关要不要对 502 重试？→ 默认只重试幂等方法；给 POST 开 `non_idempotent` 会把下单重放。
-
-### 2.2 POST 后端收不到参数，或者直接 400
-
-**现场**
-
-`curl -v` 看实际发出的 `Content-Type`；后端日志里看原始 body。
-
-```bash
-# 声明什么就必须发什么
-curl -X POST http://localhost:8080/v1/tasks \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"写周报"}'
-```
-
-**要点**
-
-- 先看 `Content-Type` 和请求体格式是否一致，不要逐个字段对名字。
-- 声明 `application/json` 却发 `a=1&b=2`（或反过来），框架的绑定器直接放弃解析，整个对象是 `null`。
-- 字段名错通常报的是"字段校验失败"，而不是"参数为空"。
-
-**追问**
-
-- 什么时候报 415？→ 服务端不支持这个媒体类型，比 400 更明确。
-- 表单和 JSON 能同时支持吗？→ 能，但要按 `Content-Type` 分派解析器，别混着猜。
-- 怎么快速排除前端问题？→ 同一份 body 用 `curl` 发一遍，能通就是前端构造的问题。
-
-### 2.3 前端报 CORS，后端日志里没有 OPTIONS 记录
-
-**现场**
-
-浏览器 Network 面板看 OPTIONS 的状态码；Nginx access log 里搜 `OPTIONS`。
-
-```bash
-curl -i -X OPTIONS http://localhost:8080/v1/tasks \
-  -H 'Origin: https://app.example.com' \
-  -H 'Access-Control-Request-Method: POST'
-# 期望 204 且带 Access-Control-Allow-*；返回 401 就是安全链在拦
-```
-
-**要点**
-
-- 预检在到达业务代码之前就被拦了（安全框架 401、网关 403、路由不匹配 404），跨域头根本没机会加。
-- 预检被拦时浏览器不会发真实请求，只给真实响应加头等于没加。
-- 顺序是先看 OPTIONS 有没有 2xx，再看头对不对。
-
-**追问**
-
-- 哪些请求会触发预检？→ 非简单方法、带自定义请求头（含 `Authorization`）、`Content-Type` 不是三种表单类型。
-- 带 Cookie 为什么不能用 `*`？→ `Allow-Origin: *` 与 `Allow-Credentials: true` 不能共存，要回显具体 Origin。
-- CORS 能当安全边界吗？→ 不能，`curl` 和 Postman 完全不受约束。
-
-### 2.4 401 与 403 混用，前端登录死循环
-
-**现场**
-
-看响应是否带 `WWW-Authenticate`（401 规范要求带）；看 token 是否被服务端成功解析。
-
-**要点**
-
-- 401 是"身份未确认"，403 是"身份已确认但无权"。
-- 把 403 当 401 处理，用户会反复登录却始终进不去；401 要求重新认证，403 要求不要再试。
-- 用同一个 token 调一个已知有权限的接口，能通就说明是 403 而不是登录失效。
-
-**追问**
-
-- 前端拦截器最常见的错是什么？→ 对 403 也清 token 跳登录，一个权限配置错误就变成全员掉线。
-- 403 该给用户看什么？→ 无权限提示，别给登录入口。
-- 401 必须带什么头？→ `WWW-Authenticate`。
-
-### 2.5 重复 DELETE 返回 404，被当成故障触发重试
-
-**现场**
-
-连续删两次，看第一次 204、第二次 404，且数据库里确实没有该行。
-
-**要点**
-
-- 第二次删除 404 是**正确**结果，不是故障。
-- 幂等的定义是"服务端状态不变"，不是"每次返回同一个码"；看的是副作用次数。
-- 想统一客户端行为，可以让"删除不存在的 ID"也返回 204。
-
-**追问**
-
-- 为什么 PUT 和 DELETE 天然幂等？→ 结果由目标状态决定，重复执行不叠加。
-- POST 怎么做到可重试？→ 幂等键加唯一索引（见 3.16）。
-- 404 被当故障会怎样？→ 触发无意义重试，可能放大成告警风暴。
-
-### 2.6 静态资源改了不生效，用户看到旧页面
-
-**现场**
-
-DevTools 的 Size 列显示 `(disk cache)` 就是没发请求；`curl -I` 看 `cache-control` 与 `age`。
-
-**要点**
-
-- 部署成功与用户拿到新文件是两件事。
-- 强缓存还在有效期内：`Cache-Control: max-age=31536000` 的 JS，浏览器一年内根本不会回源。
-- 正确做法是文件名带内容 hash，HTML 入口用 `no-cache`。
-
-**追问**
-
-- 为什么 HTML 不能也设长缓存？→ 它引用带 hash 的文件名，入口被缓存住就换不了引用。
-- `no-cache` 和 `no-store` 区别？→ `no-cache` 可以存但每次用前要验证，`no-store` 完全不存。
-- 已经发出去的长缓存怎么救？→ 换文件名或 URL，改响应头对已缓存的副本无效。
-
-### 2.7 带鉴权的响应被 CDN 缓存，用户看到别人的数据
-
-**现场**
-
-响应头有 `x-cache: HIT` 且 `cache-control` 是 `public`；换个账号请求同一 URL 拿到相同内容。
-
-**要点**
-
-- 只盯应用层会漏掉中间缓存，这类串号一旦发生就是数据泄露。
-- 接口响应没有 `private` / `no-store`，CDN 或反向代理按 URL 缓存，把 A 用户的响应给了 B。
-- 修复时个性化接口至少加 `private`，敏感响应再加 `no-store`（取舍见 3.10），并在网关层禁止缓存带 `Authorization` 的请求。
-
-**追问**
-
-- 加 `Vary: Authorization` 能替代 `private` 吗？→ 不能，很多 CDN 默认不按 `Authorization` 分键，实现也不一致。
-- 怎么复现？→ 同一 URL 带不同 token 请求两次，比对响应体与 `age` 头。
-- 为什么说它低频但致命？→ 平时监控看不到错，发现时数据已经流出去了。
-
-### 2.8 下单接口重试，产生两笔订单
-
-**现场**
-
-查订单表同一用户同一商品的创建时间是否在 1 秒内出现两条。
-
-```bash
-curl -X POST https://api.example.com/v1/orders \
-  -H 'Idempotency-Key: 9f1c2e7a-4b3d-4f8e-9a10-2c6d5e8f7a01' \
-  -H 'Content-Type: application/json' \
-  -d '{"sku":"A-100","qty":1}'
-```
-
-**要点**
-
-- POST 不幂等；超时只代表"客户端没收到响应"，不代表"服务端没执行"。
-- 重试的前提是重复执行不会带来额外副作用。
-- 修法是客户端生成唯一键，服务端对键加唯一索引，重复请求直接返回首次结果；这也是网关层不能盲目对 POST 做 `proxy_next_upstream` 的原因。
-
-**追问**
-
-- 幂等键该由谁生成？→ 客户端，服务端生成无法区分重试。
-- 同一个键配不同请求体怎么办？→ 拒绝，键要和请求体绑定。
-- 键要保留多久？→ 一般 24 小时，过期后允许复用。
-
-### 2.9 token 放在 URL 查询串里
-
-**现场**
-
-在 Nginx access log 里 grep `token=`，能搜到就是泄露面。
-
-**要点**
-
-- URL 会进 access log、浏览器历史、`Referer`、监控与埋点，等于把凭证写进了一堆日志。
-- 根因是只考虑了"能不能用"，没考虑"会被谁看到"。
-- 正确位置是 `Authorization: Bearer <token>`。
-
-**追问**
-
-- 为什么 `Referer` 会把 URL 带出去？→ 页面里点外链时，当前 URL 会作为 `Referer` 发给对方。
-- 已经泄露了怎么办？→ 立刻轮换 token，再调整日志保留策略。
-- WebSocket 不能带自定义头怎么办？→ 见 WebSocket 3.9 的四种替代位置。
-
-### 2.10 PUT 当 PATCH 用，没传的字段被清空
-
-**现场**
-
-改一个字段后查详情，看其他字段是否变成 `null` 或默认值。
-
-**要点**
-
-- PUT 的语义是"整体替换"，未提供的字段按缺省处理；局部更新要用 PATCH。
-- 把 PUT 当成"字段更多的 POST"是这条的根因。
-- 实现上要么严格校验全量字段，要么改用 PATCH。
-
-**追问**
-
-- PATCH 一定幂等吗？→ 看补丁形式，整体赋值幂等，`+1` 或追加数组元素不幂等。
-- 前端只提交改动字段该用哪个？→ PATCH。
-- 为什么有些框架的 PUT 表现得像 PATCH？→ 绑定器只覆盖非空字段，属于实现偏离规范。
-
-### 2.11 分页 total 与实际条数对不上，深分页越来越慢
-
-**现场**
-
-连续请求第 1、2、3 页，看是否有重复 id；`EXPLAIN` 看是否走覆盖索引。
-
-**要点**
-
-- 翻页期间有数据增删，`offset` 分页的窗口在移动，`total` 和实际条数对不上是正常的。
-- 深分页时 `offset 100000` 要扫描并丢弃十万行，加索引只让"丢弃"便宜一点。
-- 修法是按 `(created_at, id)` 排序输出游标，并给 `size` 设上限，避免 `size=1000000`。
-
-**追问**
-
-- 游标分页的代价？→ 不能跳页，且要求排序列唯一且稳定。
-- 为什么 `total` 会变？→ 它和列表是两条 SQL，中间的数据变动不会落在同一快照里。
-- 为什么"快照"这个假设不成立？→ 分页是多次请求，每次都是新的读视图。
-
-### 2.12 用 301 做临时跳转，改完前端还在旧地址
-
-**现场**
-
-`curl -sSI <url>` 看状态码与 `Location`；DevTools 勾 Preserve log，看请求是否直接命中缓存的 301；用 `-L -v` 看第二跳用的是哪个方法。
-
-```bash
-# 用 -d 而不是 -X POST：这样才会走标准的「跟随重定向」行为
-curl -sS -o /dev/null -L -v -d '{"title":"x"}' \
-  -H 'Content-Type: application/json' \
-  https://api.example.com/v1/old-tasks 2>&1 | grep -E '^> (POST|GET) '
-```
-
-**要点**
-
-- 301 是永久重定向，浏览器会长期缓存这条规则，不依赖 `Cache-Control`。
-- 301/302 允许客户端把 POST 改成 GET，提交会被悄悄降级；要保方法用 307/308。
-- 临时换路径、换域名一律先发 302/307，只有确定永久迁移才用 301/308；已经发出去的 301 只能靠清缓存或换 URL 收场（几个码的差别见 3.4）。
-
-**追问**
-
-- 303 和 307 区别？→ 303 明确要求改用 GET 看结果，307 保持原方法和请求体。
-- 为什么 `curl -X POST` 测不出降级？→ `-X` 强制方法，要测标准跟随行为得用 `-d`。
-- 301 缓存能清吗？→ 用户侧清不掉，只能换 URL 或等缓存过期。
-
----
-
-## 三、核心知识：从零开始要建立的东西
-
-### 3.1 一次请求的四个阶段
+缓存分两级：强缓存直接复用本地副本，不发请求；协商缓存带着版本标识去问服务端，未变化时返回 `304`，只省正文不省往返。
 
 ```mermaid
-flowchart LR
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef data fill:#FEF3C7,stroke:#D97706,color:#78350F
-    classDef normal fill:#F1F5F9,stroke:#64748B,color:#334155
-
-    A["输入域名"]:::client --> B["DNS 解析"]:::service
-    B --> C["TCP 连接"]:::service
-    C --> D["TLS 握手"]:::data
-    D --> E["HTTP 报文"]:::data
-    E --> F["状态码与响应头"]:::normal
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
+flowchart TD
+    A["客户端发起请求"] -->|"检查本地缓存"| B{"本地有缓存副本"}
+    B -->|"没有"| C["发送完整请求"]
+    B -->|"有"| D{"强缓存仍在有效期"}
+    D -->|"是"| E["直接使用本地副本"]
+    D -->|"否"| F["携带 If-None-Match 或 If-Modified-Since"]
+    F -->|"发送条件请求"| G{"服务端校验版本"}
+    G -->|"未变化"| H["304 Not Modified，无正文"]
+    G -->|"已变化"| I["200 返回新表示与新 ETag"]
+    C -->|"返回新表示"| I
+    H -->|"复用本地正文"| J["客户端复用本地正文"]
+    I -->|"写入缓存"| K["客户端更新缓存"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A,E,J client
+    class B,D,F,G,H engine
+    class C,I,K image
 ```
 
-| 阶段 | 解决什么 | 失败时的典型表现 |
+| 指令或头字段 | 作用 | 常见误用 |
 |---|---|---|
-| DNS | 域名换 IP | `Could not resolve host` |
-| TCP | 找到进程并建立可靠通道 | `Connection refused` / `Connection timed out` |
-| TLS | 加密与身份验证 | 证书过期、域名不匹配、协议版本不支持 |
-| HTTP | 表达「要什么、结果如何」 | 4xx / 5xx、响应体不符合预期 |
+| `Cache-Control: max-age=3600` | 客户端可复用一小时 | 给 HTML 设长缓存导致发版不生效 |
+| `Cache-Control: no-cache` | 可存储，但每次使用前必须校验 | 误以为等于不缓存 |
+| `Cache-Control: no-store` | 禁止存储任何副本 | 与 `no-cache` 混用 |
+| `Cache-Control: private` | 只允许浏览器缓存 | 把用户数据放进 CDN |
+| `Cache-Control: s-maxage` | 覆盖共享缓存的过期时间 | 忽略 CDN 仍按旧值缓存 |
+| `ETag` / `If-None-Match` | 按表示内容做条件请求 | ETag 每次请求都随机生成 |
+| `Last-Modified` / `If-Modified-Since` | 按修改时间做条件请求 | 时间精度只到秒，短时间多次修改会漏 |
+| `Vary` | 声明缓存键随请求头变化 | 漏写 `Origin` 导致跨源响应串用 |
 
-分层排查的意义在于：**每一层的错误信息不同，不要用上一层的猜测去解释下一层的现象**。502 出现在 HTTP 层，就不该去改 DNS。
+静态资源通常采用“文件名带内容哈希 + 长缓存”的策略，例如 `app.7c9e1a.js` 配 `Cache-Control: public, max-age=31536000, immutable`。文件内容一变，文件名就变，浏览器自然请求新地址。HTML 入口不能长缓存，否则用户会一直引用旧的文件名。
 
-### 3.2 报文结构
+```bash
+# ========== 观察协商缓存 ==========
+# 第一次请求，记录响应中的 ETag
+curl -sS -D - -o /dev/null https://example.com/
 
-请求由四段组成：起始行、字段行、空行、内容。
+# 把上一步响应中的 ETag 原样填入变量后再请求
+ETAG='<上一步响应中的 ETag>'
+curl -sS -D - -o /dev/null \
+  -H "If-None-Match: $ETAG" \
+  https://example.com/
+```
+
+### 4.3 无状态、Cookie 与令牌
+
+HTTP 不记忆上一次请求，登录态必须由客户端在每次请求中携带。两种主流方式各有代价：
+
+| 方式 | 存放位置 | 撤销能力 | 跨域表现 |
+|---|---|---|---|
+| 服务端 Session | 内存、Redis 或数据库 | 强，删除即失效 | 依赖 Cookie 的域与 `SameSite` |
+| 自包含令牌 | JWT 等，客户端保存 | 弱，需短过期或黑名单 | 可放 `Authorization` 头 |
+| 浏览器 Cookie | 浏览器按域自动携带 | 服务端可清 Cookie | 受 `SameSite`、`Secure` 约束 |
+
+JWT 更适合服务间调用、第三方 API 和不需要服务端会话的网关；同源 Web 会话优先使用 `HttpOnly` Cookie，减少脚本读取令牌的机会。选择哪种方式取决于撤销需求、跨域范围和客户端类型，不存在一律适用的默认答案。
+
+Cookie 的安全属性必须成组使用：
 
 ```http
-POST /v1/tasks?dryRun=true HTTP/1.1
-Host: api.example.com
-Content-Type: application/json
-Content-Length: 38
-Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
-
-{"title":"写周报","priority":"high"}
+Set-Cookie: session=abc123; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600
 ```
 
-- **起始行**：方法、请求目标、版本，用空格分隔。请求目标通常是「路径 + 查询串」，代理场景下可能是绝对形式。
-- **字段行**：`名字: 值`，名字大小写不敏感，值里可以有空格。
-- **空行**：固定分隔符，不可省略。没有它，后面的内容会被当成字段继续解析。
-- **内容**：长度由 `Content-Length` 或 `Transfer-Encoding: chunked` 界定，二者不能同时出现。
+- `HttpOnly` 让脚本读不到 Cookie，降低 XSS 窃取会话的概率。
+- `Secure` 限制只在 HTTPS 上发送，明文 HTTP 下浏览器不会带上它。
+- `SameSite=Lax` 限制跨站子请求携带，降低 CSRF 风险；`Strict` 更严，但从外部链接进入时会丢失登录态；`None` 必须同时加 `Secure`。
+- `Domain` 不写时默认只作用于当前主机，写了会把 Cookie 扩大到子域，范围越大泄露面越大。
+- `Path` 只控制发送路径，不是安全边界，不能靠它隔离权限。
 
-响应把起始行换成状态行：版本、状态码、原因短语。**原因短语只给人看**，程序判断一律用状态码；它可以被任意改写而不影响语义。
+> **安全警告**：把 JWT 放进 `localStorage` 意味着任何 XSS 都能读走令牌，且服务端无法主动撤销未过期的令牌。同源 Web 应用优先使用 `HttpOnly + Secure + SameSite` 的 Cookie；必须用 Bearer 令牌时，缩短有效期并配合刷新令牌与撤销名单。
 
-### 3.3 方法与两个正交属性
+### 4.4 同源策略与 CORS
 
-| 方法 | 安全 | 幂等 | 语义 |
-|---|---|---|---|
-| GET | 是 | 是 | 取资源，可有缓存 |
-| HEAD | 是 | 是 | 只要响应头 |
-| OPTIONS | 是 | 是 | 询问能力，预检用 |
-| POST | 否 | 否 | 新建、提交、执行动作 |
-| PUT | 否 | 是 | 整体替换目标资源 |
-| PATCH | 否 | 通常否 | 局部修改 |
-| DELETE | 否 | 是 | 删除目标资源 |
+同源指协议、主机、端口三者完全一致。`https://app.example.com` 与 `https://api.example.com` 主机不同，属于跨源；`http://` 与 `https://` 也不同源。浏览器默认阻止脚本读取跨源响应，CORS 是一套由响应头组成的放行机制。
 
-两个属性互相独立：
-
-- **安全**：这个方法的语义不要求服务端改变资源状态。GET 会被爬虫、预取、缓存随意调用，所以不能有副作用（日志、计数这类副作用不可避免，但资源表示不能变）。
-- **幂等**：执行一次与执行 N 次，最终状态是否相同。`DELETE /tasks/1` 第二次返回 404，但服务端状态仍是「不存在」，所以幂等。
-
-`PATCH` 的幂等性取决于补丁形式：整体赋值的 JSON Merge Patch 可以幂等，带 `+1`、追加数组元素的补丁则不幂等。接口文档里要写清用的是哪一种。
-
-> **面试**：常问「安全和幂等的区别？DELETE 第二次返回 404 还算幂等吗？」答：安全是不改资源，幂等是重复执行结果相同；404 只说明记录已不存在，服务端状态没变，仍算幂等。
-
-### 3.4 状态码的分区与选择
-
-| 区间 | 含义 | 常用码与场景 |
-|---|---|---|
-| 1xx | 信息性 | 101 协议升级、100 继续发送 |
-| 2xx | 成功 | 200 查询/更新、201 创建、202 异步受理、204 无内容 |
-| 3xx | 重定向与缓存复用 | 301/308 永久、302/307 临时（307/308 保持方法与请求体）、303 改看结果、304 未修改 |
-| 4xx | 客户端问题 | 400 语法、401 未认证、403 无权限、404 不存在、405 方法不允许、409 冲突、412 前置条件失败、415 媒体类型不支持、422 语义校验、429 限流 |
-| 5xx | 服务端问题 | 500 未捕获异常、502 上游非法响应、503 暂不可用、504 上游超时 |
-
-几条容易混的边界：
-
-- **400 与 422**：400 是「报文本身坏了」（JSON 语法错、类型不对），422 是「报文合法但业务规则不允许」（年龄填 -5）。
-- **401 与 403**：401 必须带 `WWW-Authenticate`，语义是「重新认证」；403 是「认证过了，但不许」。
-- **404 与 405**：路径存在但方法不支持是 405，且响应必须带 `Allow` 头。
-- **301/302 与 307/308**：只有 307/308 保证第二跳仍是原方法与请求体；301/302 允许客户端把 POST 降级成 GET，`303` 则明确要求改用 GET 去看结果。
-- **304 不是重定向**：它只出现在带验证器的条件请求里，没有响应体。
-- **500 与 502/504**：500 是应用自己抛的；502/504 是网关对上游的判断，应用日志里往往什么都没有。
-
-> **面试**：常问「401 和 403、502 和 504 分别怎么区分？」答：401 要重新认证（必须带 `WWW-Authenticate`）、403 是无权；502 是上游非法响应或连接早关，504 是上游超时。
-
-### 3.5 表示、媒体类型与内容协商
-
-HTTP 传的不是「对象」，是对象的**表示**（representation）。同一个任务可以是 JSON、XML、CSV，靠媒体类型区分。
-
-| 头 | 方向 | 作用 |
-|---|---|---|
-| `Content-Type` | 发送方 | 我这份内容是什么格式 |
-| `Accept` | 请求方 | 我希望收到什么格式，可带 `q` 权重 |
-| `Content-Encoding` | 发送方 | 内容用了什么压缩（gzip、br） |
-| `Accept-Encoding` | 请求方 | 我能解哪些压缩 |
-
-协商失败的两个码：请求体的类型服务端不支持 → 415；`Accept` 里的类型一个都给不了 → 406。`charset` 只对文本类型有意义，JSON 按规范一律 UTF-8。
-
-### 3.6 连接复用与协议版本
-
-| 维度 | HTTP/1.1 | HTTP/2 | HTTP/3 |
-|---|---|---|---|
-| 传输层 | TCP | TCP | QUIC（UDP） |
-| 并发 | 每连接一个请求，浏览器开 6 条 | 单连接多路复用 | 单连接多路复用 |
-| 队头阻塞 | 应用层存在 | TCP 丢包时仍存在 | 只影响单个流 |
-| 头部压缩 | 无 | HPACK | QPACK |
-| 建连 | TCP + TLS 两轮 | TCP + TLS 两轮 | 合并握手，支持 0-RTT |
-
-`Connection: keep-alive` 在 HTTP/1.1 里是默认行为，写不写都一样；真正要显式配的是**反向代理到上游**的那一段：`proxy_http_version 1.1` 加 `proxy_set_header Connection ""`，否则连接池形同虚设。HTTP/2 时代，域名分片、雪碧图这些 HTTP/1.1 的优化手段多半变成负优化。
-
-### 3.7 TLS 握手与证书校验
-
-TLS 解决三件事：机密性（对称加密）、完整性（AEAD）、身份（证书链）。
-
-| 加密 | 速度 | 用在哪 |
-|---|---|---|
-| 对称（AES-GCM、ChaCha20） | 快 | 握手之后的全部数据 |
-| 非对称（ECDHE、RSA） | 慢 | 握手阶段协商出对称密钥 |
-
-TLS 1.3 把握手压到一轮往返，并且默认只允许前向安全的密钥交换。排查证书问题看三样：**有效期、域名匹配（含 SNI）、链是否完整**。自签证书在浏览器报错、在 `curl` 报 `certificate verify failed`，都属于同一类问题，与接口逻辑无关。
-
-`HSTS` 让浏览器在指定时间内强制走 HTTPS，配置错（比如给还没上 HTTPS 的域名加）会把站点锁死，上线前要确认全站可用。
-
-### 3.8 无状态、Cookie 与令牌
-
-HTTP 本身无状态，服务端不记得上一个请求是谁。维持会话有两种载体：
-
-| | Cookie + Session | Bearer Token |
-|---|---|---|
-| 状态存哪 | 服务端（内存、Redis） | 令牌自包含 |
-| 谁自动携带 | 浏览器同域自动带 | 前端代码手动加头 |
-| 跨站调用 | 需要 `SameSite=None` + `Secure` + CORS | 放请求头即可 |
-| 主动失效 | 删 session 立即生效 | 未到期前仍有效，需要黑名单或短有效期 |
-| 适合 | 服务端渲染、同域后台 | 前后端分离、移动端、开放 API |
-
-`Set-Cookie` 的几个属性决定安全边界：
-
-| 属性 | 作用 | 常见错误 |
-|---|---|---|
-| `HttpOnly` | 禁止 JS 读取 | 登录态 Cookie 漏写，XSS 直接偷走 |
-| `Secure` | 仅 HTTPS 发送 | 本地 http 调试时带上，导致 Cookie 发不出去 |
-| `SameSite=Lax` | 跨站 POST 不发送 | 跨站前端调接口时忘了改 `None` |
-| `Max-Age` | 相对过期秒数，优先于 `Expires` | 同时写 `Expires`，以为后者生效；`Max-Age=0` 是删除，不是「不过期」 |
-
-`SameSite=None` 必须同时有 `Secure`，否则浏览器直接丢弃这个 Cookie。反过来，`Max-Age=0` 会让浏览器立刻删掉这条 Cookie，是服务端「登出」的标准写法，不能拿它表示「永不过期」。
-
-### 3.9 同源策略与 CORS 的判定
-
-同源 = 协议、域名、端口三者完全相同。跨域不等于「请求发不出去」：简单请求会照常发出，只是浏览器不把响应交给 JS；非简单请求先发预检，预检不通过则真实请求根本不会发。所以「CORS 报错」既可能是响应头不对，也可能是请求压根没发出去。
-
-预检（OPTIONS）在满足以下任一条件时触发：方法不是 GET/HEAD/POST；带了自定义请求头（包括 `Authorization`）；`Content-Type` 不是 `text/plain`、`multipart/form-data`、`application/x-www-form-urlencoded`。
-
-因此**绝大多数 JSON 接口都会走预检**。
+跨源请求分两类。简单请求直接发出，浏览器检查响应头；非简单请求先发 `OPTIONS` 预检，预检通过后才发实际请求。简单请求需同时满足：方法是 `GET`、`HEAD` 或 `POST`；只使用安全列表内的头；`Content-Type` 限于 `application/x-www-form-urlencoded`、`multipart/form-data`、`text/plain`。
 
 ```mermaid
-flowchart TD
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef data fill:#FEF3C7,stroke:#D97706,color:#78350F
-    classDef normal fill:#F1F5F9,stroke:#64748B,color:#334155
-
-    A["前端发起请求"]:::client --> B{"与页面同源"}:::normal
-    B -->|"是"| C["直接发出，不做跨域检查"]:::service
-    B -->|"否"| D{"属于简单请求"}:::normal
-    D -->|"是"| E["直接发出"]:::service
-    D -->|"否"| F["先发 OPTIONS 预检"]:::data
-    F --> G{"预检 2xx 且允许方法与头"}:::normal
-    G -->|"否"| H["预检失败，真实请求不发出"]:::normal
-    G -->|"是"| I["发出真实请求"]:::service
-    E --> J{"响应头的 Allow-Origin 与凭证匹配"}:::normal
-    I --> J
-    J -->|"否"| L["响应被丢弃，JS 拿到 CORS 错误"]:::normal
-    J -->|"是"| K["响应交给 JS"]:::service
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
+sequenceDiagram
+    participant B as 浏览器
+    participant S as 服务端
+    B->>S: OPTIONS /api/orders + Origin + Access-Control-Request-Method
+    S-->>B: 204 + Allow-Origin + Allow-Methods + Allow-Headers
+    Note over B: 预检通过，进入实际请求
+    B->>S: POST /api/orders + Origin + JSON
+    S-->>B: 201 + Allow-Origin + Allow-Credentials
+    Note over B: 浏览器校验响应头后交给前端代码
 ```
 
-| 现象 | 原因 | 处理 |
+| 响应头 | 作用 | 注意 |
 |---|---|---|
-| 预检 401/403 | 安全框架拦了 OPTIONS | 放行 OPTIONS，或让 CORS 过滤器先于安全链 |
-| 带 Cookie 时报 wildcard 错误 | `Allow-Origin: *` 与 `Allow-Credentials: true` 不能共存 | 回显具体 Origin |
-| 前端读不到自定义响应头 | 没列进 `Access-Control-Expose-Headers` | 显式暴露需要的头 |
-| 每次请求都预检 | 没设 `Access-Control-Max-Age` | 设一个合理缓存时间 |
+| `Access-Control-Allow-Origin` | 允许的来源 | 带凭据时必须是具体源，不能为 `*` |
+| `Access-Control-Allow-Methods` | 预检允许的方法 | 只影响预检，不替代服务端鉴权 |
+| `Access-Control-Allow-Headers` | 预检允许的请求头 | 自定义头必须逐项列出 |
+| `Access-Control-Allow-Credentials` | 允许携带 Cookie | 为 `true` 时来源必须精确匹配 |
+| `Access-Control-Max-Age` | 预检结果缓存秒数 | 过长会让权限变更延迟生效 |
+| `Access-Control-Expose-Headers` | 允许前端读取的响应头 | 默认只能读少数安全头 |
 
-CORS 是浏览器的自愿约定，`curl` 和 Postman 完全不受约束。接口安全靠认证与鉴权，不能靠 CORS。
+> **安全警告**：CORS 是浏览器的读取限制，不是服务端访问控制。`curl`、服务端脚本和攻击者都能直接请求接口，真正的权限校验必须在服务端完成。不要为了省事把 `Origin` 原样反射并同时允许凭据，这等同于对所有站点开放登录态接口。
 
-> **面试**：常问「什么时候触发预检？为什么加了 `Allow-Origin` 还报 CORS？」答：非简单方法、自定义头、非表单类型会预检；预检本身被拦或 Origin 与凭据不匹配，加了头也不生效。
+常见误判是“浏览器报 CORS，所以接口不通”。实际上简单请求可能已经到达服务端并写入了数据，只是浏览器拒绝把响应交给前端。判断方法是看 Network 面板里请求是否发出、状态码是多少，再用 `curl` 直连对比。
 
-### 3.10 缓存的两个层次
+---
 
-```mermaid
-flowchart TD
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef data fill:#FEF3C7,stroke:#D97706,color:#78350F
-    classDef normal fill:#F1F5F9,stroke:#64748B,color:#334155
+## 五、REST 接口的设计取舍
 
-    A["请求资源"]:::client --> B{"本地有副本"}:::normal
-    B -->|"否"| C["回源取完整响应"]:::service
-    B -->|"是"| D{"副本仍在新鲜期"}:::normal
-    D -->|"是"| E["直接使用副本"]:::service
-    D -->|"否"| F["带验证器发起条件请求"]:::data
-    F --> G{"服务端判定未变"}:::normal
-    G -->|"是"| H["304 复用副本"]:::service
-    G -->|"否"| C
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
-```
+### 5.1 资源建模与方法选择
 
-| 指令 | 含义 |
-|---|---|
-| `max-age=N` | N 秒内可直接用副本 |
-| `s-maxage=N` | 只对共享缓存（CDN、代理）生效，优先级高于 `max-age` |
-| `no-cache` | 可以存，但每次用前必须验证 |
-| `no-store` | 不存，任何缓存都不许留 |
-| `private` | 只允许浏览器存，CDN 不许 |
-| `public` | 允许共享缓存存 |
-| `immutable` | 新鲜期内绝不验证，连刷新都不回源 |
+REST 用名词表示资源，用方法表示动作。路径层级表达从属关系，查询参数表达过滤、排序和分页。
 
-取舍：`no-store` 最安全但完全放弃缓存收益；`private, max-age=60` 能挡住短时间内的重复请求，又不会让数据过期太久。个性化接口的底线是 `private`（禁止共享缓存），数据本身敏感或一次性时直接 `no-store`，别为了省一点带宽去赌。
-
-> **面试**：常问「`no-cache` 和 `no-store` 有什么区别？个性化接口怎么设？」答：前者可以存但每次用前要验证，后者完全不存；个性化接口至少 `private`，敏感响应用 `no-store`。
-
-### 3.11 验证器与条件请求
-
-| 验证器 | 请求头 | 响应头 | 精度 |
-|---|---|---|---|
-| ETag | `If-None-Match` | `ETag` | 内容级，最精确 |
-| Last-Modified | `If-Modified-Since` | `Last-Modified` | 秒级 |
-
-两者同时存在时，`If-None-Match` 优先。命中返回 304，**没有响应体**，但可以带新的 `Cache-Control`、`ETag` 等头。
-
-`ETag` 分强弱：`"abc"` 是强验证器，要求字节完全一致；`W/"abc"` 是弱验证器，只保证语义等价。压缩传输时用弱 ETag 更合适，因为同一个表示可能有多种编码形式。
-
-写操作的并发控制也用它：`If-Match` 不匹配返回 412，就是乐观锁。这比「先查再改」可靠，因为查与改之间没有原子性。
-
-### 3.12 代理链与转发头
-
-经过代理后，后端看到的 `remote_addr` 是代理的 IP，`scheme` 是代理到后端那一段的协议。三个头负责把真实信息带下去：
-
-| 头 | 含义 | 注意 |
+| 端点 | 方法 | 语义 |
 |---|---|---|
-| `X-Forwarded-For` | 客户端 IP 链，逗号分隔 | 可伪造，只能信任最近一层代理追加的值 |
-| `X-Forwarded-Proto` | 原始协议 | 生成绝对 URL、判断是否加 `Secure` Cookie 时要用 |
-| `X-Forwarded-Host` | 原始 Host | 多域名共用一个后端时必需 |
+| `/orders` | `GET` | 列出订单，支持过滤与分页 |
+| `/orders` | `POST` | 创建订单 |
+| `/orders/{id}` | `GET` | 读取单笔订单 |
+| `/orders/{id}` | `PATCH` | 修改收货地址等可变字段 |
+| `/orders/{id}` | `DELETE` | 删除或作废订单 |
+| `/orders/{id}/cancel` | `POST` | 取消订单，带前置条件与审计 |
+| `/orders/{id}/items` | `GET` | 读取订单明细 |
 
-`Forwarded` 是标准化后的写法，但生态里 `X-Forwarded-*` 仍然是事实标准。后端要显式开启「信任代理头」，否则重定向会跳到内网地址、Cookie 会丢掉 `Secure`。
+取消、支付、退款这类动作有独立的前置条件、副作用和审计要求，硬套 `PATCH status` 会把状态机塞进一个字段，鉴权与日志都难做。用子资源端点表达动作更清楚，但它不再是纯资源风格，需要在契约中明确说明。
 
-### 3.13 资源建模与 URL 结构
+> **注意**：路径中不要出现动词堆叠，如 `/getOrderById`、`/createOrder`。资源名用复数名词和小写短横线，嵌套层级控制在两层以内，更深的从属关系用查询参数或独立资源表达。
 
-REST 的核心不是「URL 里没有动词」，而是**用资源与统一方法来表达意图**。
+### 5.2 错误响应与状态码
 
-| 反例 | 正例 | 问题 |
-|---|---|---|
-| `GET /getAllUsers` | `GET /users` | 动词进了路径 |
-| `POST /users/create` | `POST /users` | 创建由方法表达 |
-| `POST /task/delete?id=1` | `DELETE /tasks/1` | 删除由方法表达 |
-| `GET /users/delete/1` | `DELETE /users/1` | GET 产生副作用 |
-| `GET /api_v2/Task_List` | `GET /v2/tasks` | 大小写、下划线、版本位置混乱 |
-| `GET /tasks/list.json` | `GET /tasks` | 扩展名不属于 API |
-
-层级表达从属关系：`GET /users/1/tasks` 比 `GET /tasks?userId=1` 更能表达「属于」，但嵌套超过两层就该退回查询参数，否则路径会变成 `GET /users/1/tasks/3/comments/5/replies` 这种难维护的形状。
-
-动作不是增删改查时，允许 `POST /tasks/1/complete` 这类子资源动作，但优先考虑「改状态字段」：`PATCH /tasks/1 {"status":"done"}` 更通用，也更容易做权限与审计。
-
-### 3.14 列表接口的参数设计
-
-| 方案 | 参数 | 优点 | 代价 |
-|---|---|---|---|
-| 页码 | `page=1&size=20` | 直观，前端好做分页器 | 翻页期间数据变动会重复或遗漏 |
-| 偏移 | `limit=20&offset=40` | 语义清晰 | 深分页要扫描并丢弃大量行 |
-| 游标 | `cursor=xxx&limit=20` | 深分页稳定且快 | 不能随机跳到第 N 页 |
-
-三个必须写进文档的约定：`page` 从 1 还是 0 开始；`size` 的上限（如 100）；排序的默认值与多字段写法（`sort=-priority,createdAt`，前缀 `-` 表示降序）。
-
-筛选参数用重复键表达多值（`status=todo&status=doing`）比逗号分隔更标准，因为逗号本身可能是值的一部分。范围查询用 `createdAfter`、`createdBefore` 这类语义化名字，不要用 `start`、`end` 这种看不出含哪一端的写法。
-
-### 3.15 错误契约与业务码
-
-一套错误结构要能让前端写出**一个**拦截器，而不是每个接口写一遍：
+错误响应要同时服务三类读者：人看说明，程序看稳定错误码，运维看请求 ID。RFC 9457 定义的 `application/problem+json` 提供了通用骨架：
 
 ```json
 {
-  "code": 40901,
-  "message": "任务标题已存在",
-  "errors": [{"field": "title", "message": "已经有一个同名任务"}],
-  "traceId": "a1b2c3d4e5f6",
-  "timestamp": "2026-10-21T10:14:33+08:00"
+  "type": "https://example.com/problems/invalid-cursor",
+  "title": "Invalid cursor",
+  "status": 400,
+  "detail": "cursor is not a valid opaque token",
+  "instance": "/orders",
+  "code": "INVALID_CURSOR",
+  "request_id": "01J8Z9K3Q7"
 }
 ```
 
-| 字段 | 给谁看 | 要求 |
+| 字段 | 读者 | 要求 |
 |---|---|---|
-| HTTP 状态码 | 网关、监控、通用客户端 | 必须与错误性质一致 |
-| `code` | 业务代码 | 团队内唯一、稳定，不随文案变 |
-| `message` | 人 | 可直接展示，不含堆栈与 SQL |
-| `errors` | 表单 | 字段级，能落到具体输入框 |
-| `traceId` | 排障 | 与日志、链路追踪打通 |
+| `type` | 开发者 | 指向问题说明的稳定 URI |
+| `title` | 人 | 简短、可读、不随实例变化 |
+| `status` | 程序 | 与 HTTP 状态码一致 |
+| `detail` | 人 | 针对本次请求的具体描述 |
+| `code` | 程序 | 稳定枚举，不随文案调整 |
+| `request_id` | 运维 | 能关联到服务端日志 |
 
-最常见的坏实践是「HTTP 200 + 业务码 500」：前端拦截器、网关重试、监控告警、缓存策略全部失效，错误被藏进成功里。业务码是补充，不是替代。
+不要返回 `200` 加 `{"success":false}`。这会让网关、监控、缓存和客户端库都误判成功，重试策略也失去依据。字段级校验错误可在 `errors` 数组中给出 `field`、`code`、`message`，但顶层仍使用对应的 `4xx` 状态码。
 
-### 3.16 幂等键与安全重试
+### 5.3 分页、幂等与版本
 
-重试的前提是「重复执行不会带来额外副作用」。GET、HEAD、OPTIONS 不改数据，本身没有这个问题；改数据的方法里 PUT、DELETE 天然幂等，POST 必须靠外部机制：
+| 方案 | 写法 | 优点 | 缺点 |
+|---|---|---|---|
+| 偏移分页 | `?page=3&size=20` | 可跳页，实现简单 | 深翻页慢，插入删除会错位 |
+| 游标分页 | `?cursor=eyJpZCI6MTIzfQ&limit=20` | 翻页稳定，适合大数据量 | 不能随机跳页 |
+| 键集分页 | `?after_id=123&limit=20` | 查询高效，顺序稳定 | 需要唯一且可排序的键 |
 
-| 场景 | 机制 |
-|---|---|
-| 用户连点提交 | 前端禁用按钮 + 服务端幂等键 |
-| 网关/客户端超时重试 | 客户端生成 `Idempotency-Key`，服务端按键唯一索引 |
-| 支付回调重复 | 用流水号做唯一约束，重复插入返回首次结果 |
-| 消息重复消费 | 消费端按业务唯一键去重 |
+游标应不透明，内部可以编码 `(created_at, id)` 这样的复合排序键。只按时间排序时，同一毫秒的多条记录顺序不稳定，翻页会重复或遗漏；加上唯一键做次级排序才能保证全序。
 
-幂等键的三个要点：由**客户端**生成（服务端生成无法区分重试）；与请求体绑定（同键不同体要拒绝）；有**有效期**（一般 24 小时），过期后允许键复用。
+写操作的幂等靠客户端生成 `Idempotency-Key`，服务端以 `(调用方, key)` 建唯一约束，首次执行后保存结果，重复请求返回同一结果。键要有有效期，失败结果是否缓存要按业务决定，不能把临时故障永久固化。
+
+并发更新用 `ETag` 配合 `If-Match`：读取时拿到版本标识，提交时带上，服务端比对不一致就返回 `412`，避免后写覆盖先写。版本策略则决定破坏性变更如何交付：
+
+| 策略 | 示例 | 优点 | 缺点 |
+|---|---|---|---|
+| 路径版本 | `/v1/orders` | 直观，网关与日志易识别 | URL 变长，资源标识不稳定 |
+| 请求头版本 | `Accept-Version: 1` | URL 干净 | 调试与缓存不便 |
+| 媒体类型版本 | `Accept: application/vnd.example.v1+json` | 语义最严谨 | 客户端与工具支持成本高 |
+
+### 5.4 REST 的适用边界
+
+| 形态 | 数据特征 | 实时性 | 适用场景 |
+|---|---|---|---|
+| REST | 资源快照，请求响应 | 客户端主动拉取 | 通用业务接口、开放平台 |
+| GraphQL | 客户端声明字段 | 查询式 | 多端字段差异大、聚合多个来源 |
+| gRPC | 强类型二进制消息 | 支持流式 | 内部服务调用、低延迟高吞吐 |
+| WebSocket | 双向帧 | 长连接实时 | 聊天、协作、交易推送 |
+| SSE | 服务端单向文本流 | 长连接实时 | 通知、进度、行情 |
+
+REST 的优势在通用、可缓存、易调试，代价是多次往返和字段冗余。字段需求由客户端决定、且前端变化频繁时，GraphQL 能减少接口数量；内部服务之间追求吞吐和强类型时，gRPC 更合适。不要为了“统一”把实时推送硬做成轮询，也不要为了“先进”把简单查询改成 GraphQL。
 
 ---
 
-## 四、冷门知识汇总
+## 六、完整示例：订单接口的端到端验证
 
-| 知识点 | 为什么冷门 | 用到时的关键词 |
+### 6.1 服务端实现
+
+示例只依赖 Node 内置模块，覆盖列表、创建、详情、条件请求、幂等重放和 CORS 预检。
+
+| 端点 | 方法 | 关键行为 |
 |---|---|---|
-| `Transfer-Encoding: chunked` | 现代框架自动处理，手工拼报文时才接触 | 分块传输、长度未知、流式响应 |
-| `Range` 与 206 | 只有断点续传、视频拖动才用 | `Content-Range`、`Accept-Ranges` |
-| `Vary` | 配了缓存但没配它，问题延迟暴露 | `Vary: Accept-Encoding`、缓存键 |
-| `ETag` 与 gzip | 症状只是「没命中 304」，不比对两次响应头看不出来 | 弱 ETag、`Vary: Accept-Encoding`、`curl --compressed` 对比 |
-| `stale-while-revalidate` | 需要 CDN 支持，配置项偏门 | 先旧后新、后台刷新 |
-| `Retry-After` | 只在 429/503 时有人看 | 退避、限流、维护窗口 |
-| 请求签名 | 开放平台才需要，内部接口用不上 | `appId`、`nonce`、`timestamp`、HMAC |
-| 健康检查端点 | 上了 K8s 才成为必答题 | `/healthz`、`/readyz`、探针 |
-| 请求合并与批处理 | REST 天然一请求一资源，批量要另设计 | `POST /batch`、部分成功 |
+| `/api/orders` | `GET` | 游标分页，返回 `ETag`，支持 `If-None-Match` |
+| `/api/orders` | `POST` | 校验 JSON，要求 `Idempotency-Key`，重复键返回原结果 |
+| `/api/orders/{id}` | `GET` | 返回单笔订单，不存在时返回 `404` |
+| `/api/orders` | `OPTIONS` | 返回 CORS 预检头，状态码 `204` |
+
+```js
+// /tmp/http-demo/server.js
+const http = require("node:http");
+const { randomUUID } = require("node:crypto");
+
+const orders = new Map();
+const idempotency = new Map();
+let nextId = 1001;
+
+const ALLOW_ORIGIN = "http://127.0.0.1:5173";
+
+function corsHeaders(origin) {
+  if (origin !== ALLOW_ORIGIN) return {};
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "content-type,idempotency-key,if-none-match",
+    "Access-Control-Max-Age": "600",
+    "Vary": "Origin",
+  };
+}
+
+function send(res, status, body, headers = {}) {
+  const payload = body === null ? null : JSON.stringify(body);
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    ...(payload ? { "Content-Length": Buffer.byteLength(payload) } : {}),
+    ...headers,
+  });
+  res.end(payload);
+}
+
+function problem(res, status, code, detail, reqId) {
+  send(res, status, {
+    type: `https://example.com/problems/${code.toLowerCase()}`,
+    title: code,
+    status,
+    detail,
+    code,
+    request_id: reqId,
+  }, { "Content-Type": "application/problem+json" });
+}
+
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 65536) reject(new Error("body too large"));
+    });
+    req.on("end", () => {
+      try { resolve(JSON.parse(raw || "{}")); }
+      catch { reject(new Error("invalid json")); }
+    });
+    req.on("error", reject);
+  });
+}
+
+const server = http.createServer(async (req, res) => {
+  const reqId = randomUUID();
+  const url = new URL(req.url, "http://127.0.0.1");
+  const origin = req.headers.origin;
+  const cors = corsHeaders(origin);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, cors);
+    return res.end();
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/orders") {
+    const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 20, 1), 100);
+    const offset = Math.max(Number(url.searchParams.get("cursor")) || 0, 0);
+    const all = [...orders.values()];
+    const items = all.slice(offset, offset + limit);
+    const next = offset + limit < all.length ? String(offset + limit) : null;
+    const etag = `W/"${all.length}-${items.at(-1)?.id ?? "none"}"`;
+    const headers = { ...cors, ETag: etag, "Cache-Control": "no-store" };
+
+    if (req.headers["if-none-match"] === etag) {
+      res.writeHead(304, headers);
+      return res.end();
+    }
+    return send(res, 200, { items, next_cursor: next }, headers);
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/orders") {
+    const key = req.headers["idempotency-key"];
+    if (!key || String(key).length < 8) {
+      return problem(res, 400, "MISSING_IDEMPOTENCY_KEY", "Idempotency-Key is required", reqId);
+    }
+    if (idempotency.has(key)) {
+      const saved = idempotency.get(key);
+      return send(res, saved.status, saved.body, { ...cors, ...saved.headers, "Idempotent-Replayed": "true" });
+    }
+
+    let body;
+    try { body = await readJson(req); }
+    catch { return problem(res, 400, "INVALID_JSON", "request body is not valid JSON", reqId); }
+
+    if (!Array.isArray(body.items) || body.items.length === 0) {
+      return problem(res, 422, "EMPTY_ITEMS", "items must contain at least one entry", reqId);
+    }
+
+    const id = `A${nextId++}`;
+    const order = {
+      id,
+      status: "pending",
+      total_cents: body.items.reduce((sum, item) => sum + (item.quantity || 0) * 100, 0),
+      created_at: new Date().toISOString(),
+    };
+    orders.set(id, order);
+
+    const headers = { ...cors, Location: `/api/orders/${id}` };
+    idempotency.set(key, { status: 201, body: order, headers });
+    return send(res, 201, order, headers);
+  }
+
+  const match = url.pathname.match(/^\/api\/orders\/([^/]+)$/);
+  if (req.method === "GET" && match) {
+    const order = orders.get(match[1]);
+    if (!order) return problem(res, 404, "ORDER_NOT_FOUND", "order does not exist", reqId);
+    return send(res, 200, order, { ...cors, "Cache-Control": "no-store" });
+  }
+
+  return problem(res, 404, "ROUTE_NOT_FOUND", "no route matches this path", reqId);
+});
+
+server.listen(8080, "127.0.0.1", () => {
+  console.log("listen http://127.0.0.1:8080");
+});
+```
+
+示例把订单存在内存里，进程重启即丢失；生产环境要换成数据库，并把幂等键建成唯一索引。`Idempotent-Replayed` 是示例自定义的响应头，用来说明本次结果来自重放，不属于 HTTP 标准。
+
+运行示例时重点观察三处：创建响应的 `Location` 是否指向新资源；重放请求的响应体与首次是否完全一致；列表请求带 `If-None-Match` 后是否只返回头而不返回正文。三处都符合，说明状态码、幂等与条件请求形成了闭环。
+
+### 6.2 调用与验证
+
+```bash
+# ========== 启动服务 ==========
+node /tmp/http-demo/server.js
+
+# ========== 创建订单 ==========
+# 同一个 Idempotency-Key 连续提交两次，观察结果是否一致
+curl -i -X POST http://127.0.0.1:8080/api/orders \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-key-0001' \
+  -d '{"items":[{"sku":"A-100","quantity":2}]}'
+
+curl -i -X POST http://127.0.0.1:8080/api/orders \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-key-0001' \
+  -d '{"items":[{"sku":"A-100","quantity":2}]}'
+
+# ========== 查询列表 ==========
+curl -i 'http://127.0.0.1:8080/api/orders?limit=20'
+
+# ========== 条件请求 ==========
+# 用上一步响应里的 ETag 验证 304
+curl -i -H 'If-None-Match: W/"1-A1001"' \
+  'http://127.0.0.1:8080/api/orders?limit=20'
+
+# ========== 触发业务校验失败 ==========
+curl -i -X POST http://127.0.0.1:8080/api/orders \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-key-0002' \
+  -d '{"items":[]}'
+
+# ========== 预检请求 ==========
+curl -i -X OPTIONS http://127.0.0.1:8080/api/orders \
+  -H 'Origin: http://127.0.0.1:5173' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: content-type,idempotency-key'
+```
+
+第一次创建返回 `201 Created`，带 `Location: /api/orders/A1001`；用同一个键重放返回 `201 Created` 和 `Idempotent-Replayed: true`，订单号不变。列表请求返回 `ETag: W/"1-A1001"`，带上该值再请求得到 `304`。空数组返回 `422` 与 `EMPTY_ITEMS`，预检返回 `204` 和允许的方法、头字段。
+
+### 6.3 网关接入与生产配置
+
+```nginx
+# ========== 上游与超时 ==========
+upstream order_api {
+    server 127.0.0.1:8080;
+    keepalive 32;
+}
+
+server {
+    listen 443 ssl;
+    server_name api.example.com;
+
+    # 证书路径按实际环境替换
+    ssl_certificate     /etc/nginx/certs/api.crt;
+    ssl_certificate_key /etc/nginx/certs/api.key;
+
+    # 请求体上限按业务调整，避免大包打满内存
+    client_max_body_size 1m;
+
+    location /api/ {
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 连接与读取超时要大于应用的最长处理时间
+        proxy_connect_timeout 3s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+
+        proxy_pass http://order_api;
+    }
+}
+```
+
+| 指令 | 作用 | 配置不当的后果 |
+|---|---|---|
+| `client_max_body_size` | 限制请求体大小 | 过小导致正常上传被拒，过大易被大包耗尽内存 |
+| `proxy_connect_timeout` | 连接上游的超时 | 上游宕机时请求长时间挂起 |
+| `proxy_read_timeout` | 等待上游响应的超时 | 小于应用处理时间会稳定返回 `504` |
+| `proxy_set_header Connection ""` | 清空逐跳连接头 | 复用上游长连接时出现连接错乱 |
+| `X-Forwarded-Proto` | 告知上游原始协议 | 应用生成的回调地址变成 `http` |
+
+接入网关后，先用 `curl --resolve` 把域名指向网关，重复 6.2 的三组请求；对比直连与经过网关的状态码、响应头和耗时。若直连正常而网关失败，优先查路径重写、请求体上限和超时配置。
+
+> **安全警告**：TLS 通常在网关终止，网关到上游这一段可能是明文。跨主机部署时应继续使用 TLS 或放在可信内网，并禁止在访问日志中记录 `Authorization` 与 Cookie 原文。
+
+---
+
+## 七、常见故障与排查
+
+| 现象 | 最可能原因 | 处理 |
+|---|---|---|
+| 浏览器报 CORS，`curl` 返回 200 | 响应缺 `Access-Control-Allow-Origin`，或预检未处理 | 看 Network 的 `OPTIONS` 与响应头，补齐来源、方法、头 |
+| 带 Cookie 的跨域请求失败 | 来源写成 `*`，或缺 `Allow-Credentials` | 返回具体来源并允许凭据，Cookie 设 `SameSite=None; Secure` |
+| `401` 与 `403` 混用 | 未认证写成无权限 | `401` 跳登录并带 `WWW-Authenticate`，`403` 提示申请权限 |
+| 刷新后登录失效 | Cookie 的域、路径、`Secure`、`SameSite` 不匹配 | 看 `Set-Cookie` 与请求实际携带的 Cookie |
+| `404` 但接口存在 | 路径前缀、尾斜杠、网关 rewrite 不一致 | `curl -i` 直连后端，再对比网关转发规则 |
+| `500` | 应用未捕获异常 | 查应用日志与堆栈，不要先改前端 |
+| `502` | 网关连不上上游或收到无效响应 | 查上游端口、进程、健康检查与协议版本 |
+| `504` | 网关等待上游超时 | 查慢查询、连接池、下游调用与超时配置 |
+| 改了代码仍是旧页面 | HTML 被强缓存、Service Worker 或 CDN 缓存 | 查 `Cache-Control`、文件名哈希，禁用缓存复现 |
+| `304` 响应却有正文 | 代理或框架错误写入内容 | 确认 `304` 只回头字段，不写响应体 |
+| `GET` 带请求体偶发失败 | 代理或缓存不保证转发请求体 | 查询参数放 URL；复杂查询改用 `POST /search` |
+| 上传大文件返回 `413` | 网关请求体上限过小 | 调整 `client_max_body_size`，同步应用层限制 |
+
+```mermaid
+flowchart TD
+    A["请求异常"] -->|"先直连验证"| B{"curl 直连后端是否正常"}
+    B -->|"正常"| C["查网关与 CDN<br/>转发规则、超时、缓存"]
+    B -->|"异常"| D["看状态码分段"]
+    D -->|"4xx"| E["4xx 查请求<br/>参数、认证、权限、路径"]
+    D -->|"5xx"| F["5xx 查服务端<br/>日志、上游、数据库"]
+    E -->|"对比头字段"| G["对比浏览器与 curl 的头字段"]
+    F -->|"串联日志"| H["按请求 ID 串联网关与应用日志"]
+    C -->|"核查链路"| I["确认协议、TLS、跨源与缓存头"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A,G client
+    class B,D,E,F,H engine
+    class C,I image
+```
+
+排查顺序按“先直连、再看网关、最后怀疑前端”推进：
+
+1. `curl -i` 直连接口，确认服务端本身返回的状态码、头字段与正文。
+2. 用 `curl -w` 拆分耗时，判断慢在 DNS、连接、TLS、首字节还是传输。
+3. 打开浏览器 Network，核对请求头、响应头、`Origin`、Cookie 与协议版本。
+4. 有网关时查访问日志的 `status`、`upstream_status`、`request_time`，区分客户端断开、上游错误与超时。
+5. 用响应中的 `request_id` 到应用日志定位具体请求，核对参数与异常堆栈。
+6. 最后才检查前端代码、构建产物与缓存，避免把服务端问题误判为页面问题。
+
+> **注意**：排查时不要只看状态码。`200` 也可能是缓存命中或错误的业务响应，`304` 也可能因为 ETag 生成不当而永远不命中。状态码、响应头、响应体三者要一起看。

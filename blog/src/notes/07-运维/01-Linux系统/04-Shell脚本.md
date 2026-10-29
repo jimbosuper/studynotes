@@ -1,720 +1,959 @@
 # Shell 脚本
 
-## 一、工程案例：一个不会把备份做丢的脚本
+---
 
-**场景**：给一台服务器写每日 MySQL 备份。要求：
+## 一、Shell 脚本是什么
 
-- 每天 03:00 自动跑，失败要能被发现
-- 备份要压缩、要能自动清理旧文件
-- 不能因为「磁盘满了」「密码错了」「上一次还没跑完」而静默失败
+### 1.1 核心概念
 
-**为什么这件事值得写脚本**：手工备份一定会漏。而**写错的备份脚本比没有更危险**——它会每天报成功，直到你真的需要恢复那天。
+Shell 脚本是把一系列命令、判断和循环写进文本文件，交给 Shell 解释器顺序执行的程序。它不经过编译，直接复用系统上已有的命令，因此特别适合做命令编排、环境检查、批量处理和定时任务。脚本的真正价值不是“少敲几行”，而是让一件重复的事拥有固定的输入、固定的步骤和固定的失败方式。
 
-### 1.1 主线：一个能上生产的最小脚本
+一台服务器每天 03:00 要备份数据库。手工执行会暴露一连串问题：
+
+- 凌晨无人值守，迟早会忘记。
+- 忘记检查磁盘，写出一个 0 字节文件，还留在目录里。
+- 上一次没跑完，下一次又启动，两个 `mysqldump` 互相拖慢。
+- 密码写在命令行里，任何能执行 `ps` 的用户都能看到。
+- 失败信息打在终端上，cron 执行时没有终端，直接丢失。
+
+脚本要解决的是五件事：**什么时候跑、按什么顺序、失败怎么办、产物怎么验、结果怎么让外面知道**。这五件事分别对应调度、控制流、退出码、校验和日志，缺任何一项，脚本都只是“把命令堆在一起”。
+
+它不解决的问题同样要提前说清。脚本不是配置管理，十台机器的一致性属于 Ansible、SaltStack 或镜像构建；脚本也不是通用编程语言，超过一百行、需要解析复杂结构、并发、重试或单元测试时，应换 Python 或 Go。Shell 的强项是调用外部命令和拼接流程，弱项是数据结构、错误模型和可测试性。
+
+### 1.2 与相邻技术的关系
+
+Shell 脚本处在“命令”与“程序”之间。它比逐条敲命令可重复，比写一个服务轻量，但不具备配置管理、服务托管和跨机编排能力。理解它与相邻工具的边界，能避免把所有自动化都塞进一个 `.sh`。
+
+| 技术 | 负责范围 | 与 Shell 脚本的关系 |
+|---|---|---|
+| 单条命令 | 一次操作 | 脚本的最小组成单元 |
+| Shell 脚本 | 单机命令编排 | 无编译、依赖系统命令 |
+| Python / Go | 复杂逻辑与数据结构 | 脚本变复杂后的替代 |
+| Ansible | 多机配置一致性 | 调用脚本，但不替代脚本内部逻辑 |
+| systemd timer | 定时与依赖 | 调度脚本，不管脚本内容 |
+| cron | 周期触发 | 最轻量的调度方式 |
+
+一条实用判断：**脚本负责“把现成工具串起来”，程序负责“实现现成工具没有的能力”**。需要解析 JSON、维护状态机、做并发控制或提供 API 时，Shell 会迅速变成引号和子 shell 的堆叠，维护成本高于重写。
+
+Shell 与调度器的关系也常被误解。cron 只负责在时间点启动进程，不负责环境、重试、日志和并发；systemd timer 补上了依赖、日志和补跑，但仍不检查脚本内部是否成功。调度器与脚本之间唯一的契约是退出码，脚本必须把失败翻译成非 0，调度器才能感知。
+
+### 1.3 架构组成
+
+一个脚本从被调用到退出，经过解释器加载、逐条执行、产生输出、返回退出码四个阶段。理解这条链路，才能解释“终端能跑、cron 不跑”“明明失败却返回 0”这类问题。
+
+```mermaid
+flowchart TD
+    A["调用方<br/>终端 / cron / CI"] -->|"传入参数与环境"| B["解释器<br/>#!/bin/bash"]
+    B -->|"逐条解析执行"| C["命令与内建<br/>外部命令 / 函数"]
+    C -->|"读写"| D["标准输入 / 输出 / 错误"]
+    C -->|"成功或失败"| E{"退出码"}
+    E -->|"0"| F["继续下一步"]
+    F --> C
+    E -->|"非 0"| G["set -e 中止<br/>或显式处理"]
+    G --> H["trap EXIT<br/>清理临时文件与锁"]
+    F --> H
+    H --> I["返回退出码<br/>交给调用方"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A,D client
+    class B,C,E,F,G,H engine
+    class I image
+```
+
+四个组成部分缺一不可：
+
+| 部分 | 靠什么实现 | 缺失后果 |
+|---|---|---|
+| 输入 | `$1`、环境变量、`${VAR:-默认}` | 参数漏传时拿空值继续跑 |
+| 状态 | 变量、数组、`local` | 函数改掉外部同名变量，越查越乱 |
+| 控制流 | 退出码、`if`、`&&`、`\|\|` | 上一步失败，下一步照跑 |
+| 收尾 | `trap ... EXIT` | 临时文件、锁、半成品留在机器上 |
+
+最容易被忽略的是收尾。脚本的退出码是它与外界唯一的契约，cron 不看日志，监控也不看日志，它们只看退出码。日志写“成功”但退出码是 0，和真的成功，在外部看来没有区别。
+
+---
+
+## 二、运行环境与脚本骨架
+
+### 2.1 解释器与版本确认
+
+脚本第一行的 shebang 决定由哪个解释器执行。`#!/bin/bash` 与 `#!/bin/sh` 不是同一个东西：前者启用 bash 扩展，后者在 Debian/Ubuntu 上通常指向 dash，不支持数组、`[[ ]]`、`local` 的部分用法。
+
+| 解释器 | 特点 | 适用场景 |
+|---|---|---|
+| `bash` | 功能完整，支持数组、`[[ ]]`、关联数组 | 运维脚本默认选择 |
+| `sh` / `dash` | POSIX 兼容，启动快，功能少 | 容器入口、可移植脚本 |
+| `zsh` | 交互体验好，默认配置不同 | 个人终端，不建议写运维脚本 |
+| `ksh` | 商业 Unix 常见，兼容性较好 | 传统 Unix 环境 |
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail                    # 任何一步失败就停，别带着错误往下跑
+# ========== 确认解释器 ==========
+# 查看当前 shell 与 bash 版本
+echo "$SHELL"
+bash --version
 
-DB_HOST="${DB_HOST:-127.0.0.1}"
-DB_PORT="${DB_PORT:-3306}"
+# 查看 sh 实际指向哪个解释器
+ls -l /bin/sh
+
+# 检查脚本语法，不执行
+bash -n backup.sh
+
+# 检查脚本是否只使用 POSIX 语法
+shellcheck --shell=sh backup.sh
+```
+
+> **注意**：`#!/usr/bin/env bash` 会从 `PATH` 中查找 bash，适合脚本需要在多台机器复用的场景；`#!/bin/bash` 更确定，但在 bash 不在该路径的系统上会失败。生产脚本应固定一种写法并在验收时确认。
+
+### 2.2 脚本创建与执行方式
+
+同一个脚本，用不同方式调用，运行环境完全不同。`./x.sh` 与 `bash x.sh` 都会启动子进程，脚本里的 `cd`、`export`、`umask` 不影响当前终端；`source x.sh` 在当前 shell 执行，会改变当前环境。
+
+| 调用方式 | 是否新进程 | 是否受执行权限限制 | 典型用途 |
+|---|---|---|---|
+| `./script.sh` | 是 | 需要 `+x` | 正常执行 |
+| `bash script.sh` | 是 | 不需要 `+x` | 调试、临时执行 |
+| `source script.sh` | 否 | 不需要 `+x` | 加载环境变量、函数库 |
+| `. script.sh` | 否 | 不需要 `+x` | 同上，POSIX 写法 |
+
+```bash
+# ========== 创建与授权 ==========
+# 创建脚本文件并写入 shebang
+cat > hello.sh <<'EOF'
+#!/bin/bash
+printf 'hello %s\n' "${1:-world}"
+EOF
+
+# 赋予属主执行权限
+chmod 750 hello.sh
+
+# 直接执行，使用 shebang 指定的解释器
+./hello.sh ops
+
+# 显式指定解释器执行，便于调试
+bash -x hello.sh ops
+
+# 在当前 shell 加载，变量会保留
+source ./env.sh
+```
+
+`source` 的双刃性必须记住：加载 `app.env` 很方便，但如果文件里写了 `exit`，会把当前终端一起关掉；如果文件里有语法错误，错误会污染当前 shell。加载外部文件前应确认来源可信，并优先使用 `set -a` 配合 `source` 导入变量。
+
+### 2.3 严格模式配置
+
+运维脚本默认应在严格模式下运行。`set -euo pipefail` 分别处理命令失败、未定义变量和管道失败，三者组合能拦住大部分“失败了却继续跑”的场景。
+
+| 选项 | 作用 | 典型收益 |
+|---|---|---|
+| `-e` | 命令非 0 立即退出 | 失败不再被忽略 |
+| `-u` | 引用未定义变量报错 | 参数漏传立刻暴露 |
+| `-o pipefail` | 管道任一环失败即失败 | 避免 `gzip` 失败被 `tee` 掩盖 |
+| `-E` | 让 `ERR` trap 继承到函数与子 shell | 统一错误处理 |
+| `-x` | 打印展开后的命令 | 调试执行路径 |
+
+```bash
+#!/bin/bash
+# ========== 严格模式演示 ==========
+# 命令失败、未定义变量、管道失败都终止脚本
+set -euo pipefail
+
+# 打印参数个数与第一个参数，缺省值为“未提供”
+printf '参数个数: %s\n' "$#"
+printf '第一个参数: %s\n' "${1:-未提供}"
+```
+
+```text
+$ ./demo.sh
+参数个数: 0
+第一个参数: 未提供
+$ ./demo.sh world
+参数个数: 1
+第一个参数: world
+```
+
+严格模式并非万无一失。`set -e` 在 `if` 条件、`&&`/`||` 左侧、`!` 取反、管道中间（未开 `pipefail` 时）以及 `local x=$(cmd)` 的赋值中都不生效。下面的最小复现说明了管道的问题：
+
+```bash
+# ========== 验证 pipefail ==========
+# false 失败但 true 成功，未开 pipefail 时整体返回 0
+bash -c 'set -eu; false | true; echo "不会执行"'; echo "退出码: $?"
+
+# 开启 pipefail 后，整条管道返回失败
+bash -c 'set -euo pipefail; false | true; echo "不会执行"'; echo "退出码: $?"
+```
+
+第一条命令会打印“不会执行”，退出码为 0；第二条直接以 1 退出。备份脚本里 `mysqldump | gzip` 正是这种结构，没有 `pipefail` 时，即使 `mysqldump` 失败，`gzip` 仍会正常结束并返回 0，最终留下一个看似正常的空备份。
+
+### 2.4 权限与安全
+
+脚本的权限决定谁能修改它，而“谁能修改脚本”等价于“谁能以脚本运行者的身份执行命令”。放在 root 的 cron 里、权限却是 777 的脚本，是一条直白的提权通道。
+
+```bash
+# ========== 脚本权限 ==========
+# 属主 root，属组运维组，组外不可读写执行
+sudo chown root:ops /opt/scripts/mysql-backup.sh
+sudo chmod 750 /opt/scripts/mysql-backup.sh
+
+# 查看权限与属主
+ls -l /opt/scripts/mysql-backup.sh
+
+# ========== 凭据文件 ==========
+# 创建空文件并直接设定 600，避免先 644 再改的窗口
+install -m 600 /dev/null "$HOME/.my.cnf.backup"
+
+# 写入客户端凭据，属主可读写
+cat > "$HOME/.my.cnf.backup" <<'EOF'
+[client]
+user=backup
+password=change-me
+host=127.0.0.1
+port=3306
+EOF
+```
+
+> **安全警告**：密码写在命令行参数里，任何能执行 `ps` 的用户都能看到，还会进入 shell history。数据库客户端应使用 `--defaults-extra-file` 读取 600 权限的配置文件，或从受限环境变量读取，不要把密码拼进命令。
+
+脚本中还应避免把未过滤的外部输入拼进命令。文件名、主机名、用户输入都可能包含空格、分号、通配符，直接拼接会导致分词或命令注入。变量一律加双引号，路径用 `--` 终止选项解析，执行外部命令前用 `command -v` 确认存在。
+
+---
+
+## 三、语法核心对象
+
+### 3.1 变量与参数展开
+
+Shell 变量没有类型，赋值等号两边不能有空格，引用时默认加双引号。参数展开提供了大量免外部命令的字符串处理能力，熟练使用能显著减少 `cut`、`sed` 的调用。
+
+| 写法 | 含义 |
+|---|---|
+| `"$VAR"` | 一个参数，原样传入 |
+| `'$VAR'` | 不展开，原样输出 `$VAR` |
+| `${VAR:-默认}` | 为空或未定义时用默认值 |
+| `${VAR:?错误}` | 为空时打印错误并退出 |
+| `${#VAR}` | 字符串长度 |
+| `${VAR%.*}` / `${VAR%/*}` | 去掉最后一个后缀 / 取所在目录 |
+| `${VAR#*/}` / `${VAR##*/}` | 去掉第一个前缀 / 取文件名 |
+| `${VAR//a/b}` | 全部替换 |
+| `${VAR:2:3}` | 从偏移 2 取 3 个字符 |
+
+```bash
+# ========== 变量与展开 ==========
+# 赋值等号两边不能有空格
+NAME="web01"
+
+# 用花括号划清变量边界，避免把 _bak 当成变量名的一部分
+echo "${NAME}_bak"
+
+# 为空时使用默认值，适合可选参数
+PORT="${PORT:-8080}"
+
+# 必填变量为空时立即退出，避免后续用空路径操作
+: "${BACKUP_DIR:?BACKUP_DIR 未设置}"
+
+# 取文件名与目录
+path="/data/backup/app.sql.gz"
+printf '文件名=%s 目录=%s\n' "${path##*/}" "${path%/*}"
+```
+
+数组用于保存多个值，遍历时必须加引号写成 `"${arr[@]}"`，否则包含空格的元素会被拆开。关联数组需要 bash 4 以上，用 `declare -A` 声明。
+
+```bash
+# ========== 数组 ==========
+# 索引数组，元素可含空格
+hosts=("web01" "web02" "db 01")
+
+# 遍历时加引号，保持元素完整
+for h in "${hosts[@]}"; do
+  printf 'host=%s\n' "$h"
+done
+
+# 关联数组，用字符串键索引
+declare -A ports
+ports[web]=8080
+ports[db]=3306
+
+# 按 key 遍历
+for k in "${!ports[@]}"; do
+  printf '%s=%s\n' "$k" "${ports[$k]}"
+done
+```
+
+> **注意**：`$NAME_bak` 会被解析为变量 `NAME_bak`，不是 `$NAME` 加 `_bak`。凡是变量后紧跟字母、数字或下划线，都必须写成 `${NAME}_bak`。
+
+### 3.2 条件判断与测试
+
+条件判断有两套语法：`[ ]` 是外部命令，会分词，变量必须加引号；`[[ ]]` 是 bash 语法，不分词，支持正则和逻辑组合。运维脚本优先使用 `[[ ]]`，需要 POSIX 兼容时再用 `[ ]`。
+
+| 写法 | 判断内容 |
+|---|---|
+| `[[ -f $f ]]` | 是普通文件 |
+| `[[ -d $d ]]` | 是目录 |
+| `[[ -s $f ]]` | 存在且非空 |
+| `[[ -z $v ]]` / `[[ -n $v ]]` | 为空 / 非空 |
+| `[[ $a -gt 10 ]]` | 数字比较 |
+| `(( n > 10 ))` | 算术比较 |
+| `[[ $s =~ ^[0-9]+$ ]]` | 正则匹配 |
+| `[[ $a == x* ]]` | 通配符匹配 |
+
+```bash
+# ========== 条件判断 ==========
+# 文件存在且非空才继续，判断备份是否为空常用
+[[ -s "$backup" ]] || { echo "备份为空" >&2; exit 2; }
+
+# 目录不存在则创建
+[[ -d "$BACKUP_DIR" ]] || mkdir -p "$BACKUP_DIR"
+
+# 数字比较，先校验是否为整数
+[[ "${n:-}" =~ ^[0-9]+$ ]] || { echo "n 不是整数" >&2; exit 2; }
+
+# 算术比较，空值会被当作 0，因此前面必须先校验
+if (( n > 10 )); then
+  echo "大于 10"
+fi
+
+# 多分支用 case，比嵌套 if 清晰
+case "${1:-}" in
+  start|stop|restart) echo "执行 $1" ;;
+  *) echo "用法: $0 {start|stop|restart}" >&2; exit 2 ;;
+esac
+```
+
+数字比较有一个常见陷阱：`[ "$n" -gt 10 ]` 在 `n` 为空时直接报 `integer expression expected`，而 `(( n > 10 ))` 把空当 0 并放行。外部传入的数字必须先做格式校验，再进入比较。
+
+### 3.3 循环与函数
+
+循环用于遍历文件、逐行读取输入和重试。遍历文件用通配符，逐行读文件用 `while IFS= read -r`；不要用 `for f in $(ls)`，它会对文件名分词，含空格的文件会被拆成两个。
+
+```bash
+# ========== 循环 ==========
+# 遍历通配符结果，没有匹配时跳过
+for f in /data/logs/*.log; do
+  [[ -e "$f" ]] || continue
+  gzip "$f"
+done
+
+# 逐行读取，IFS= 保留行首尾空白，-r 不解释反斜杠
+while IFS= read -r line; do
+  printf 'line=%s\n' "$line"
+done < hosts.txt
+
+# 带超时的重试，最多 5 次，间隔 3 秒
+for i in {1..5}; do
+  if curl -fsS --max-time 5 http://127.0.0.1:8080/health; then
+    break
+  fi
+  sleep 3
+done
+```
+
+`cat f | while read` 中的循环运行在子 shell，循环里修改的变量在循环外看不到；`while ... done < f` 不会产生子 shell。需要保留循环内状态时，优先用输入重定向而不是管道。
+
+函数用于复用逻辑，`local` 必须写，不写就会覆盖全局变量。`return` 只能返回 0 到 255 的整数，要返回字符串就用 `echo` 加命令替换。
+
+```bash
+# ========== 函数 ==========
+# 日志函数，第一个参数为级别，其余为消息
+log() {
+  local level="${1:-INFO}"
+  shift
+  printf '%s [%s] %s\n' "$(date '+%F %T')" "$level" "$*"
+}
+
+# 失败函数，打印到 stderr 并以指定码退出
+die() {
+  local msg="$1"
+  local code="${2:-1}"
+  log ERROR "$msg" >&2
+  exit "$code"
+}
+
+# 返回字符串用 echo，调用方用命令替换接收
+db_name() {
+  echo "app_prod"
+}
+name=$(db_name)
+```
+
+> **注意**：`local x=$(cmd)` 会掩盖 `cmd` 的退出码，`set -e` 不会在此触发。需要感知失败时写成两行：`local x; x=$(cmd) || die "命令失败"`。
+
+### 3.4 文本处理与命令组合
+
+Shell 脚本的大量工作是从命令输出中提取字段。原则是能用参数展开和 `awk` 一次完成，就不要串接多个 `cut`、`sed`；能用 `printf` 格式化，就不要用 `echo -e`。
+
+| 工具 | 适用场景 | 注意点 |
+|---|---|---|
+| `printf` | 格式化输出 | 比 `echo` 可移植 |
+| `cut` | 按固定分隔符取列 | 不处理连续空格 |
+| `awk` | 按字段处理、条件过滤 | 默认空格分词 |
+| `sed` | 行级替换与删除 | 修改前先备份 |
+| `jq` | JSON 解析 | 无 jq 时不要手写正则 |
+| `xargs -0` | 批量传参 | 配合 `find -print0` |
+
+```bash
+# ========== 字段提取 ==========
+# 取 df 输出的第四列，-P 保证 POSIX 单行格式
+free_mb=$(df -Pm /data | awk 'NR==2 {print $4}')
+
+# 取文件大小，人类可读
+size=$(du -h "$out" | cut -f1)
+
+# 用 printf 生成固定格式日志
+printf '%s [%s] db=%s size=%s\n' "$(date '+%F %T')" INFO "$DB_NAME" "$size"
+
+# 用 jq 读取 JSON 字段，-r 去掉引号，-e 让 null 返回非 0
+status=$(curl -fsS http://127.0.0.1:8080/actuator/health | jq -r '.status')
+```
+
+---
+
+## 四、运行时控制
+
+### 4.1 退出码与信号
+
+退出码是脚本与外界沟通的唯一稳定接口。0 表示成功，非 0 表示失败，具体数值可用于区分失败类型。约定俗成的码值能减少调用方的判断成本。
+
+| 退出码 | 含义 | 使用建议 |
+|---|---|---|
+| `0` | 成功 | 唯一表示成功 |
+| `1` | 一般错误 | 未分类失败 |
+| `2` | 用法错误 | 参数缺失、格式错误 |
+| `126` | 无执行权限 | 检查 `chmod` |
+| `127` | 命令不存在 | 检查 `PATH` 与安装 |
+| `128+n` | 被信号 n 终止 | 如 130 表示 SIGINT |
+
+```bash
+# ========== 退出码 ==========
+# 查看上一条命令的退出码
+false
+echo "$?"
+
+# 查看管道中每一环的退出码
+false | true | true
+printf '%s\n' "${PIPESTATUS[@]}"
+
+# 显式以指定码退出
+exit 2
+
+# 判断进程是否存在，不发送信号
+kill -0 "$pid" 2>/dev/null && echo "进程存在"
+```
+
+脚本末尾的退出码取最后一条命令的结果。如果最后一条是 `echo "完成"`，即使前面失败过，脚本也会返回 0。失败必须立刻 `exit`，或在 `trap` 中保存原始状态。
+
+### 4.2 trap 与资源清理
+
+`trap` 在收到信号或脚本退出时执行指定命令，是清理临时文件、释放锁、删除半成品的标准手段。`EXIT` 陷阱在正常结束、`exit`、未捕获错误和收到可捕获信号时都会触发。
+
+| 信号 | 触发场景 | 是否可捕获 |
+|---|---|---|
+| `EXIT` | 脚本退出（伪信号） | 是 |
+| `ERR` | 命令返回非 0 | 是 |
+| `INT` | Ctrl+C | 是 |
+| `TERM` | `kill` 默认信号 | 是 |
+| `HUP` | 终端断开 | 是 |
+| `KILL` | `kill -9` | 否 |
+
+```bash
+# ========== 临时文件与清理 ==========
+# 创建临时文件，失败则退出
+tmp=$(mktemp) || { echo "创建临时文件失败" >&2; exit 1; }
+
+# 无论正常退出还是异常退出都删除临时文件
+trap 'rm -f "$tmp"' EXIT
+
+# 捕获 INT 与 TERM，先清理再以 130/143 退出
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# 写入临时内容
+date '+%F %T' > "$tmp"
+```
+
+需要保留原始退出码时，不能在 `trap` 里直接写 `exit 0`。正确写法是先保存 `$?`，执行清理，再以原码退出：
+
+```bash
+# ========== 保留退出码的清理 ==========
+# 先存原始状态，清理动作失败也不改变最终结果
+trap 'rc=$?; rm -rf "$workdir"; exit $rc' EXIT
+```
+
+> **运维红线**：`trap 'rm -rf "$TMP"' EXIT` 中的变量必须确保已赋值且非空。若 `TMP` 为空，命令会展开成 `rm -rf ""`，看似无害；若写成 `rm -rf $TMP/` 且 `TMP` 为空，则可能删除根目录。清理路径前必须用 `: "${TMP:?未设置}"` 兜底。
+
+### 4.3 锁与并发控制
+
+定时任务最常见的并发问题是“上一次还没跑完，下一次已经启动”。用 `ps | grep` 判断存在检查与启动之间的时间窗口，等于没有判断。可靠做法是文件锁，锁随进程退出自动释放。
+
+| 方式 | 原子性 | 进程退出自动释放 | 建议 |
+|---|---|---|---|
+| `flock -n` | 是 | 是 | 首选 |
+| PID 文件 | 否 | 否 | 需处理残留与复用 |
+| `mkdir` 锁 | 是 | 否 | 需人工清理 |
+| `ps \| grep` | 否 | 不适用 | 不可用于互斥 |
+
+```bash
+# ========== 单实例锁 ==========
+# 打开文件描述符 200，指向锁文件
+exec 200>"/tmp/$(basename "$0").lock"
+
+# 非阻塞加锁，拿不到立即退出，不排队
+flock -n 200 || { echo "已有实例在运行，本次跳过"; exit 0; }
+
+# 阻塞加锁，最多等待 30 秒
+flock -w 30 200 || { echo "等待锁超时" >&2; exit 1; }
+
+# 锁在进程退出时自动释放，无需手动删除文件
+```
+
+`flock -n` 拿不到锁时返回非 0，脚本应打印“跳过”并以 0 退出，避免监控把正常的并发保护误判为失败。锁文件本身可以长期存在，锁的状态由内核维护，删除文件反而会破坏互斥。
+
+### 4.4 日志与调试
+
+日志要能定位问题，必须带时间、级别、关键参数和结果。只写“失败”等于没写，排障时仍要翻代码猜是哪个库、哪个文件。日志写 stderr 还是 stdout 也要区分：正常数据走 stdout，错误与诊断走 stderr。
+
+```bash
+# ========== 日志输出 ==========
+# 信息日志写 stdout，供下游采集
+log INFO "备份完成 db=${DB_NAME} file=${out} size=${size}"
+
+# 错误日志写 stderr，避免混入正常数据
+log ERROR "mysqldump 失败：${reason}" >&2
+
+# 同时输出到终端与文件，保留颜色时用 tee
+./backup.sh 2>&1 | tee -a /var/log/backup.log
+```
+
+调试脚本有固定顺序：先 `bash -n` 排语法，再 `bash -x` 看展开，再用 ShellCheck 找常见错误，最后用干净环境复现差异。`-x` 默认输出不带行号，在脚本开头设置 `PS4` 可以定位到文件和行。
+
+```bash
+# ========== 调试 ==========
+# 只做语法检查，不执行任何命令
+bash -n backup.sh
+
+# 逐行打印展开后的命令
+bash -x backup.sh
+
+# 在脚本内设置提示符，输出文件、行号、函数名
+PS4='+${BASH_SOURCE}:${LINENO}:${FUNCNAME[0]}: '
+
+# 静态检查未加引号、cd 未检查、无用变量
+shellcheck -x backup.sh
+```
+
+> **开发提示**：`set -x` 会把变量值完整打印到 stderr，包含密码、令牌等敏感信息。生产环境启用前必须确认日志访问权限，或在敏感命令前后临时 `set +x`。
+
+---
+
+## 五、输入输出与数据处理
+
+### 5.1 重定向与管道
+
+Shell 用文件描述符管理输入输出：0 是标准输入，1 是标准输出，2 是标准错误。重定向改变描述符指向，管道把前一个命令的 stdout 接到后一个命令的 stdin。错误默认不走管道，这是“日志里看不到报错”的常见原因。
+
+| 写法 | 含义 |
+|---|---|
+| `> file` | stdout 覆盖写入 |
+| `>> file` | stdout 追加 |
+| `2> file` | stderr 写入文件 |
+| `2>&1` | stderr 并入 stdout |
+| `&> file` | stdout 与 stderr 都写入 |
+| `<<EOF` | here document，保留变量展开 |
+| `<<'EOF'` | here document，禁止展开 |
+| `< <(cmd)` | 进程替换，把命令输出当文件 |
+
+```bash
+# ========== 重定向 ==========
+# 标准输出与错误一起追加到日志
+./backup.sh >> /var/log/backup.log 2>&1
+
+# 丢弃标准输出，只保留错误
+./backup.sh > /dev/null
+
+# 打开文件描述符 3，供后续命令写入
+exec 3>> /var/log/audit.log
+
+# 写入后关闭描述符
+printf 'done\n' >&3
+exec 3>&-
+
+# 用进程替换比较两个命令的输出
+diff <(sort a.txt) <(sort b.txt)
+```
+
+`2>&1` 的顺序很重要。`cmd > file 2>&1` 先把 stdout 指向文件，再把 stderr 复制到 stdout 的当前指向，两者都进文件；`cmd 2>&1 > file` 先把 stderr 指向终端，再改 stdout，错误仍留在终端。
+
+### 5.2 文件遍历与安全删除
+
+批量处理文件时，路径中的空格、换行、通配符都会破坏朴素写法。遍历用 glob 并加引号，配合 `find -print0` 与 `xargs -0` 处理任意文件名。删除前先打印清单，确认后再执行。
+
+| 需求 | 写法 | 风险点 |
+|---|---|---|
+| 按后缀遍历 | `for f in *.log` | 无匹配时原样保留 |
+| 递归查找 | `find /data -type f -name '*.log'` | 漏 `-type f` 会匹配目录 |
+| 处理特殊文件名 | `find ... -print0 \| xargs -0` | 普通 `xargs` 会分词 |
+| 按时间筛选 | `find ... -mtime +7` | `+7` 表示超过 7 天 |
+| 删除前确认 | `find ... -print` | 先看清单再改 `-delete` |
+
+```bash
+# ========== 查找与清理 ==========
+# 先打印超过保留期的备份文件，人工确认
+find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -type f -mtime "+$KEEP_DAYS" -print
+
+# 确认后改为删除，-delete 必须放在所有条件之后
+find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -type f -mtime "+$KEEP_DAYS" -delete
+
+# 处理含空格与换行的文件名
+find /data/inbox -type f -print0 | while IFS= read -r -d '' f; do
+  printf 'file=%s\n' "$f"
+done
+```
+
+> **运维红线**：`rm -rf "$DIR"/*` 在 `DIR` 为空时会变成 `rm -rf /*`。删除前必须 `: "${DIR:?未设置}"`，并确认变量不是 `/`、`/data` 这类宽路径。任何带通配符的递归删除，都应先 `echo` 展开结果。
+
+### 5.3 JSON 与结构化数据
+
+现代接口几乎都返回 JSON，用 `grep`、`sed` 解析字段迟早会出错。`jq` 是命令行 JSON 处理器，支持过滤、取值、默认值和退出码判断，适合在脚本里做轻量数据提取。
+
+| 用法 | 作用 |
+|---|---|
+| `jq -r '.status'` | 取字段并去掉引号 |
+| `jq -e '.status == "UP"'` | 条件为假时返回非 0 |
+| `jq -r '.items[]?.name'` | 遍历数组，缺失时跳过 |
+| `jq -r '.count // 0'` | 字段为空时用默认值 |
+| `jq -c` | 输出单行紧凑 JSON |
+
+```bash
+# ========== JSON 提取 ==========
+# 取健康状态，-e 让 false 或 null 返回非 0
+status=$(curl -fsS --max-time 5 http://127.0.0.1:8080/actuator/health | jq -r '.status')
+
+# 判断状态并决定退出码
+[[ "$status" == "UP" ]] || { echo "健康检查失败: $status" >&2; exit 1; }
+
+# 取数组长度，字段缺失时按 0 处理
+count=$(jq -r '.items // [] | length' response.json)
+```
+
+> **注意**：`jq` 不是所有最小镜像都预装，脚本依赖它之前应先用 `command -v jq` 检查并给出明确报错。若环境无法安装，应换用 Python 的 `json` 模块，而不是退回正则解析。
+
+---
+
+## 六、脚本组合与调度
+
+### 6.1 模块化与被引用
+
+当多个脚本共享日志、锁、参数解析逻辑时，应抽成函数库，用 `source` 加载。库文件只定义函数和常量，不执行主逻辑；入口脚本负责参数解析和调用，避免“source 一下就跑了半套流程”。
+
+| 组织方式 | 做法 | 适用场景 |
+|---|---|---|
+| 单文件 | 全部逻辑写在一起 | 100 行以内 |
+| 函数库 | `lib/common.sh` 只放函数 | 多脚本复用 |
+| 入口脚本 | 解析参数、调用函数 | 对外暴露命令 |
+| 配置分离 | `source env.sh` | 环境相关变量 |
+
+```bash
+# ========== 函数库 ==========
+# lib/common.sh 只定义函数，不执行主流程
+log() { printf '%s [%s] %s\n' "$(date '+%F %T')" "${1:-INFO}" "${*:2}"; }
+die() { log ERROR "$1" >&2; exit "${2:-1}"; }
+
+# 入口脚本加载库，路径基于脚本自身位置，避免依赖当前目录
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+source "${SCRIPT_DIR}/lib/common.sh"
+
+# ========== 参数解析 ==========
+# 用 getopts 解析短选项，非法选项直接报错
+while getopts ":d:k:" opt; do
+  case "$opt" in
+    d) DB_NAME="$OPTARG" ;;
+    k) KEEP_DAYS="$OPTARG" ;;
+    *) die "用法: $0 -d 数据库 -k 保留天数" 2 ;;
+  esac
+done
+```
+
+入口脚本应设置 `main` 保护，只有被直接执行时才运行主逻辑，被 `source` 时只加载函数。判断方式是比较 `BASH_SOURCE[0]` 与 `$0`，两者相同说明是直接执行。
+
+### 6.2 cron 与 systemd timer 接入
+
+cron 用五个时间字段加一条命令描述周期任务，系统级配置比用户 crontab 多一个用户字段。它不加载登录环境，`PATH` 很短，工作目录是用户家目录，这三个差异是“终端能跑、cron 不跑”的主要原因。
+
+| 路径 | 字段数 | 适用场景 |
+|---|---|---|
+| `/etc/crontab` | 6，含用户 | 系统级任务 |
+| `/etc/cron.d/*` | 6，含用户 | 软件包或运维投放 |
+| `crontab -e` | 5，无用户 | 当前用户任务 |
+| `/etc/cron.{hourly,daily}` | 脚本 | 发行版预置周期任务 |
+
+```bash
+# ========== cron 配置 ==========
+# 每天 03:00 以 root 执行备份，stdout 与 stderr 都追加到日志
+# 写入 /etc/cron.d/app-backup，文件末尾必须留一个换行
+0 3 * * * root /usr/bin/bash /opt/scripts/mysql-backup.sh >> /var/log/mysql-backup.log 2>&1
+
+# 查看当前用户的 crontab
+crontab -l
+
+# 查看 cron 服务状态
+systemctl status cron --no-pager
+```
+
+cron 里的 `%` 有特殊含义，表示换行，日期格式中的 `%F` 必须转义成 `\%F`。更稳妥的做法是把所有逻辑写进脚本，crontab 只保留“解释器 + 脚本路径 + 重定向”三部分，避免引号和百分号嵌套。
+
+```ini
+# /etc/systemd/system/backup.timer
+[Unit]
+# 定时器描述
+Description=Daily database backup timer
+
+[Timer]
+# 每天 03:00 触发
+OnCalendar=*-*-* 03:00:00
+# 开机补跑错过的执行
+Persistent=true
+# 随机延迟，避免多机同时打库
+RandomizedDelaySec=300
+# 指定触发的 service
+Unit=backup.service
+
+[Install]
+# 挂到 timers target
+WantedBy=timers.target
+```
+
+```bash
+# ========== timer 管理 ==========
+# 重载并启用定时器，只启用 timer 即可
+sudo systemctl daemon-reload
+sudo systemctl enable --now backup.timer
+
+# 查看下次触发时间
+systemctl list-timers backup.timer
+
+# 手动触发一次，验证 service
+sudo systemctl start backup.service
+```
+
+| 维度 | cron | systemd timer |
+|---|---|---|
+| 日志 | 需自行重定向 | 自动进入 journal |
+| 依赖 | 无 | 可 `After=` 其他服务 |
+| 错过补跑 | 不支持 | `Persistent=true` |
+| 随机延迟 | 需自行实现 | `RandomizedDelaySec=` |
+| 环境 | 极简，需显式设置 | 可配 `Environment=` |
+
+### 6.3 数据库备份完整示例
+
+下面把前述要素组合成一个可运行的备份脚本。它的关键不在 `mysqldump` 参数，而在前置检查、单实例锁、临时文件、产物校验和清理策略五道防线。
+
+```mermaid
+flowchart LR
+    A["前置检查<br/>命令 / 凭据 / 磁盘"] -->|"全部通过"| B["获取单实例锁<br/>flock -n"]
+    B -->|"拿到锁"| C["导出到 .part<br/>mysqldump + gzip"]
+    C -->|"退出码为 0"| D["产物校验<br/>非空 + gzip -t"]
+    D -->|"校验通过"| E["改名归档<br/>mv .part → .sql.gz"]
+    B -->|"已有实例"| F["打印跳过<br/>退出码 0"]
+    C -->|"失败"| G["删除半成品<br/>退出码 2"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A client
+    class B,C,D,E engine
+    class F,G image
+```
+
+```bash
+#!/bin/bash
+# ========== 参数与函数 ==========
+# 严格模式，任何未处理失败都终止
+set -euo pipefail
+
+# 允许环境变量覆盖默认值
 DB_NAME="${DB_NAME:-app}"
-DB_USER="${DB_USER:-backup}"
-DB_PASS="${DB_PASS:-}"
 BACKUP_DIR="${BACKUP_DIR:-/data/backup/mysql}"
 KEEP_DAYS="${KEEP_DAYS:-7}"
 MIN_FREE_MB="${MIN_FREE_MB:-2048}"
+CNF="${CNF:-$HOME/.my.cnf.backup}"
 
+# 日志与失败函数，错误统一写 stderr
 log() { printf '%s [%s] %s\n' "$(date '+%F %T')" "$1" "${*:2}"; }
-die() { log ERROR "$@"; exit 1; }
+die() { local msg="$1" code="${2:-1}"; log ERROR "$msg" >&2; exit "$code"; }
 
-# ① 前置检查：宁可现在退出，也别生成一个空文件
-[ -n "$DB_PASS" ] || die "DB_PASS 未设置"
+# 临时错误文件，退出时自动清理
+err_file=$(mktemp)
+trap 'rm -f "$err_file"' EXIT
+
+# ========== ① 前置检查 ==========
+# 宁可现在退出，也别生成空文件
 command -v mysqldump >/dev/null || die "找不到 mysqldump"
+command -v flock >/dev/null || die "找不到 flock（util-linux）"
+[[ -r "$CNF" ]] || die "读不到 $CNF"
 mkdir -p "$BACKUP_DIR"
 
+# 取可用空间，-P 保证单行输出，-m 以 MB 为单位
 free_mb=$(df -Pm "$BACKUP_DIR" | awk 'NR==2 {print $4}')
-[ "$free_mb" -ge "$MIN_FREE_MB" ] || die "剩余空间不足：${free_mb}MB < ${MIN_FREE_MB}MB"
+[[ "$free_mb" -ge "$MIN_FREE_MB" ]] || die "空间不足：${free_mb}MB < ${MIN_FREE_MB}MB"
 
-# ② 单实例锁：上次没跑完就跳过，不排队
+# ========== ② 单实例锁 ==========
+# 上次没跑完就跳过，不排队
 exec 200>"/tmp/$(basename "$0").lock"
-flock -n 200 || die "已有实例在运行，本次跳过"
+flock -n 200 || { log INFO "已有实例在运行，本次跳过"; exit 0; }
 
-# ③ 备份：先写临时文件，成功后再改名
+# ========== ③ 导出到临时文件 ==========
+# 先写 .part，成功后才改名，避免留下半个文件
 ts=$(date +%F_%H%M%S)
 out="${BACKUP_DIR}/${DB_NAME}_${ts}.sql.gz"
 tmp="${out}.part"
 
 log INFO "开始备份 ${DB_NAME} -> ${out}"
-if ! mysqldump \
+if ! mysqldump --defaults-extra-file="$CNF" \
       --single-transaction --quick --routines --triggers --events \
-      -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" \
-      2>"${out}.err" | gzip >"$tmp"; then
-    log ERROR "mysqldump 失败：$(tail -1 "${out}.err")"
-    rm -f "$tmp"
-    exit 2
+      "$DB_NAME" 2>"$err_file" | gzip >"$tmp"; then
+  log ERROR "mysqldump 失败：$(tail -1 "$err_file")" >&2
+  rm -f "$tmp"
+  exit 2
 fi
 
-# ④ 验收：文件必须非空、且真的是 gzip
-[ -s "$tmp" ] || { rm -f "$tmp"; die "备份文件为空"; }
+# ========== ④ 产物验收 ==========
+# 非空，且确实是完整的 gzip 流
+[[ -s "$tmp" ]] || { rm -f "$tmp"; die "备份文件为空"; }
 gzip -t "$tmp" || { rm -f "$tmp"; die "备份文件损坏"; }
 mv "$tmp" "$out"
-log INFO "备份完成 $(du -h "$out" | cut -f1)"
+log INFO "备份完成 db=${DB_NAME} file=${out} size=$(du -h "$out" | cut -f1)"
 
-# ⑤ 清理：DRY_RUN=1 只打印，确认后再真删
-if [ "${DRY_RUN:-0}" = "1" ]; then
-    find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -type f -mtime "+$KEEP_DAYS" -print
-else
-    find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -type f -mtime "+$KEEP_DAYS" -delete
-fi
-log INFO "已清理 ${KEEP_DAYS} 天前的备份（DRY_RUN=${DRY_RUN:-0}）"
+# ========== ⑤ 清理策略 ==========
+# 先打印清单，人工确认后再打开删除
+find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -type f -mtime "+$KEEP_DAYS" -print
 ```
 
-挂到 crontab：
+几个决定成败的细节：
 
-```bash
-# /etc/cron.d/app-backup（多一个用户字段）
-0 3 * * * root . /opt/app/app.env && /usr/bin/bash /opt/scripts/mysql-backup.sh >> /var/log/mysql-backup.log 2>&1
-```
+- `--single-transaction` 让 InnoDB 在不锁表的情况下拿到一致快照，MyISAM 表不适用。
+- `.part` 加改名保证中途失败或磁盘满时，目录里不会出现看起来正常的坏备份。
+- `gzip -t` 必须做。gzip 流被截断时文件大小可能正常，解压才报错。
+- `flock -n` 拿不到锁立刻退出，用 `ps | grep` 判断存在检查与启动之间的窗口，等于没判断。
+- `--defaults-extra-file` 把凭据移出命令行，`ps` 与 history 都看不到密码。
 
-### 1.2 验收（6 项，全部要真跑）
+> **注意**：`mysqldump` 的 `--routines`、`--triggers`、`--events` 需要相应权限。备份账号权限不足时，命令可能只打印警告并以 0 退出，必须结合错误文件与恢复演练确认对象完整。
+
+### 6.4 脚本验收
+
+脚本写完不等于可用。至少覆盖正常、凭据错误、缺变量、并发、空间不足和恢复六个场景，其中恢复是唯一真正重要的验收。
 
 | # | 场景 | 怎么做 | 通过标准 |
 |---|---|---|---|
-| 1 | 正常备份 | 直接跑 | 退出码 0，目录里有 `.sql.gz`，`gzip -t` 通过 |
-| 2 | 密码错误 | `DB_PASS=wrong ./script.sh` | 退出码 2，日志有「mysqldump 失败」，**没有残留文件** |
-| 3 | 缺变量 | `env -u DB_PASS ./script.sh` | 立刻退出，提示「DB_PASS 未设置」 |
-| 4 | 并发 | 同时跑两个 | 第二个直接跳过，不产生两个文件 |
-| 5 | 空间不足 | 把 `MIN_FREE_MB` 设成 999999 | 前置检查就退出 |
-| 6 | **恢复验证** | 拿备份到测试库 `gunzip < x.sql.gz \| mysql testdb` | 能导入，表和数据都在 |
+| 1 | 正常备份 | 直接执行 | 退出码 0，生成 `.sql.gz`，`gzip -t` 通过 |
+| 2 | 凭据错误 | 改错配置文件密码 | 退出码 2，日志有原因，无 `.part` 残留 |
+| 3 | 缺变量 | `env -u HOME ./mysql-backup.sh` | 立即退出，提示读不到配置 |
+| 4 | 并发 | 同时启动两个实例 | 第二个打印跳过，退出码 0，只有一个文件 |
+| 5 | 空间不足 | `MIN_FREE_MB=999999` | 前置检查退出，不启动 mysqldump |
+| 6 | 能恢复 | `gunzip < x.sql.gz \| mysql testdb` | 导入成功，表与数据完整 |
 
-> **第 6 项是唯一真正重要的**。「备份成功」不等于「能恢复」——过期密码、权限变更、表结构不兼容，都只有恢复时才暴露。
+第 6 项必须定期做。密码过期、权限变更、表结构不兼容，都只有恢复那天才暴露。“备份成功”和“能恢复”是两件事，前者只证明命令退出码为 0。
 
 ---
 
-## 二、高频问答：会卡住你的地方，也是面试最常问的
+## 七、工程化边界与替代方案
 
-### 2.1 `set -e` 没生效，脚本还是继续往下跑
+### 7.1 语言选择信号
 
-**现场**
+Shell 适合胶水逻辑，不适合承载复杂业务。出现下列信号时，应停止在脚本里加功能，改用 Python 或 Go，把脚本收缩为“调用程序并检查退出码”。
 
-让每条命令自己报退出码，就能看出是哪条没停。
+| 需求 | 建议工具 | 原因 |
+|---|---|---|
+| 调命令、串流程、做前置检查 | Shell | 直接复用系统命令 |
+| 解析 JSON、YAML、复杂配置 | Python + `jq` / `PyYAML` | 有数据结构与异常模型 |
+| 并发、重试、超时控制 | Python / Go | 标准库支持完善 |
+| 单元测试、被其他程序引用 | Python / Go | 可测试、可打包 |
+| 单条命令即可完成 | 不写脚本 | 减少维护面 |
 
-```bash
-set -euo pipefail
+一条经验：脚本超过一百行、出现嵌套函数、开始手写参数解析，就该考虑换语言。Shell 没有类型、没有异常、没有标准库，硬撑的代价是后面每次改动都要重新理解一遍引号与分词。
 
-# ✘ 这条失败不会停，因为它在 if 里
-if mycmd; then ...
+### 7.2 不宜自动化的场景
 
-# ✘ cmd 在管道中间，失败也看不见（没有 pipefail 时）
-cmd | gzip > x
+- 一次性操作：写脚本、调试、验收的时间超过手动执行。
+- 已有成熟工具：日志轮转用 logrotate，定时用 systemd timer，不要自己写守护循环。
+- 需要人判断的步骤：把“确认删哪台机器”写进脚本，等于把判断权交给一个不会犹豫的程序。
+- 需要强一致的事务：Shell 无法保证多步骤的原子性，中途失败只能靠人工补偿。
 
-# ✔ 显式判断最稳
-mycmd || { echo "mycmd 失败"; exit 1; }
-```
-
-**要点**
-
-- `set -e` 有一堆**例外**：`if` 条件里、`&&`/`||` 左边、`!` 取反、管道中间（除非 `pipefail`）、`local x=$(cmd)` 的赋值。
-- 它是「兜底」，不是「保证」，关键步骤显式写 `|| die` 才可靠。
-- 管道要连中间段的失败一起传出来，还得再开 `pipefail`。
-
-**追问**
-
-- 为什么 `if mycmd` 失败也不停？→ 退出码被 `if` 消费了，它属于「被检查的条件」。
-- `local x=$(cmd)` 为什么会漏？→ 拿到的是 `local` 这条内建命令的退出码，不是命令替换的。
-- 那三件套还值得写吗？→ 值得，它能兜住大多数意外，例外处自己补判断。
-
-> `set -e` 是「兜底」，不是「保证」。**关键步骤显式写 `|| die`**，别指望它。
-
-### 2.2 `-u` 报 `unbound variable`，明明赋过值
-
-**现场**
-
-用 `${var:-默认值}` 的写法试一次，看是否还报。
-
-```bash
-set -u
-name="${1:-}"                 # 位置参数没传也不报错
-echo "${name:-未命名}"
-
-arr=()
-for x in "${arr[@]:-}"; do echo "$x"; done   # 空数组的兼容写法
-```
-
-**要点**
-
-- 报错说的是「执行到这条命令时这个变量没有值」，不是「变量从来不存在」。
-- 三个高发点：`$1` 没传、`${arr[@]}` 在空数组上、变量只在某个 `if` 分支里才赋值。
-- 兼容写法是 `${var:-}`、`${arr[@]:-}`，给一个空默认值。
-
-**追问**
-
-- `set -u` 下 `$1` 怎么安全用？→ 写 `${1:-}`，或用 `$#` 先判断个数。
-- `${var:-}` 和 `${var-}` 差在哪？→ 带冒号时空值也算未设置，不带冒号只管完全未定义。
-
-### 2.3 变量赋值后 `-u` 仍然报错：等号两边有空格
-
-**现场**
-
-报错通常是 `VAR: command not found`，不是语法错误提示。
-
-```bash
-VAR="x"        # ✔
-VAR = "x"      # ✘ command not found
-```
-
-**要点**
-
-- `VAR = "x"` 会被当成「执行一个叫 VAR 的命令」，参数是 `=` 和 `x`，而不是赋值。
-- 赋值语句**等号两边不能有空格**，这是语法层面的硬规定。
-- 认错的标志是报错里出现变量名加 `command not found`。
-
-**追问**
-
-- 为什么报的是 command not found？→ 这一行的第一个词被当成命令名了。
-- `VAR= x` 又是什么？→ 空赋值的临时环境变量前缀，真正执行的是命令 `x`。
-
-### 2.4 `[ -n $VAR ]` 在变量为空时结果为真
-
-**现场**
-
-```bash
-# ✘
-[ -n $VAR ] && echo "有值"
-
-# ✔ 总是加引号
-[ -n "$VAR" ] && echo "有值"
-[[ -n $VAR ]] && echo "有值"     # [[ ]] 内部不会做分词，不加引号也安全
-```
-
-用 `bash -x` 看展开后的命令，就能看到 `[ -n ]` 只剩一个参数。
-
-**要点**
-
-- 变量为空又没加引号时，这一行展开成 `[ -n ]`，只剩一个参数，`[` 认为它是「非空字符串」→ 为真。
-- 根因是分词：没引号的空变量直接消失，要判断的对象都没了。
-- 默认写法就是加引号；`[[ ]]` 内部不分词，不加也安全。
-
-**追问**
-
-- 为什么 `[` 对一个参数返回真？→ 单参数的 `[` 等价于判断「这个字符串非空」。
-- `[[ ]]` 为什么安全？→ 它是语法不是命令，不做分词和通配符展开。
-- `[[ ]]` 有什么代价？→ 只有 bash/ksh 有，`sh`(dash) 里没有。
-
-> **`[` 是命令，`[[` 是语法**。`[[ ]]` 更安全（不做分词、支持 `=~`），但只存在于 bash/ksh，`sh`(dash) 里没有。
-
-### 2.5 脚本在终端能跑，cron 里失败
-
-**现场**
-
-用空环境复现，一次就能看出来是环境问题。
-
-```bash
-env -i /bin/bash --noprofile --norc -c '/opt/scripts/x.sh'
-```
-
-**要点**
-
-- 脚本本身没坏，是 cron 的环境和你的登录终端不一样。
-- 四个差异：PATH 短、没有 LANG（中文乱码）、工作目录是 `$HOME`、不读 `~/.bashrc`。
-- 修法三件套：脚本开头设 `PATH`、`cd` 到固定目录、所有命令用绝对路径。
-
-**追问**
-
-- 为什么手动跑好好的？→ 你登录时 `~/.bashrc` 已经替你把 PATH 和 LANG 补好了。
-- cron 的 PATH 到底多短？→ 通常只有 `/usr/bin:/bin`，`/usr/local/bin` 里的东西它就找不到。
-- crontab 里 `%` 有什么坑？→ 不转义会被当换行，命令被截断。
-
-### 2.6 脚本把生产文件删多了
-
-**现场**
-
-**先 `echo` 再执行**，把要删的清单当预览看一遍。
-
-```bash
-# ✔ 危险动作先打印
-find "$DIR" -name "*.log" -mtime +30 -print      # 先看会删哪些
-find "$DIR" -name "*.log" -mtime +30 -delete     # 确认后再删
-
-# ✔ 路径变量必须有值
-: "${DIR:?DIR 未设置}"        # 为空就直接退出
-rm -rf -- "${DIR:?}/tmp"
-```
-
-**要点**
-
-- 删多了通常不是 `find`/`rm` 有 bug，而是路径变量为空或通配符写宽。
-- 变量为空会把路径变成 `/` 或当前目录，通配符写宽是同一类问题。
-- `find -delete` 少了 `-type f` 会连目录一起删。
-
-**追问**
-
-- `rm -rf "$VAR"/*` 有多危险？→ `VAR` 为空时就变成 `rm -rf /*`。
-- 最便宜的保险是什么？→ `: "${DIR:?DIR 未设置}"`，为空立刻退出。
-- 命令里为什么写 `--`？→ 终止选项解析，防文件名以 `-` 开头被当参数。
-
-> `rm -rf "$VAR"` 在 `VAR` 为空时等价于 `rm -rf ""`（多数情况无害），但 `rm -rf "$VAR"/*` 会变成 `rm -rf /*`。**加 `:?` 是最便宜的保险**。
-
-### 2.7 并发跑出两份备份 / 两个进程互相踩
-
-**现场**
-
-用 `flock` 之后问题消失，这是验证方式也是解法。
-
-```bash
-exec 200>/tmp/my.lock
-flock -n 200 || { echo "已在运行"; exit 0; }
-# ... 业务 ...
-# 脚本退出时 fd 关闭，锁自动释放
-```
-
-**要点**
-
-- 加 `if` 判断进程在不在解决不了：`ps | grep` 有竞态，检查完到启动之间可能被插进来。
-- `flock` 是内核级的锁，检查和加锁在同一步完成，不存在这个窗口。
-- 它比 pid 文件可靠：进程被 `kill -9` 时 pid 文件会残留，而锁随进程消失自动释放。
-
-**追问**
-
-- 锁文件为什么要 `exec 200>`？→ fd 绑在脚本生命周期上，脚本一退就关闭、就释放。
-- `flock -n` 和 `-w` 差在哪？→ 前者拿不到立刻失败，后者等指定秒数。
-- 跳过了要不要报错退出？→ 通常 `exit 0`，「已有实例在跑」不是失败。
-
-> **`flock` 比 pid 文件可靠**：进程被 `kill -9` 时，pid 文件会残留，而 `flock` 随进程消失自动释放。
-
-### 2.8 中文输出乱码
-
-**现场**
-
-两步：`locale` 看环境，`file -I` 看文件本身。
-
-```bash
-export LANG=C.UTF-8
-export LC_ALL=C.UTF-8
-# 文件统一存成 UTF-8，不要混 GBK
-```
-
-**要点**
-
-- 终端本身多半没问题，是运行环境没有 `LANG`，默认 `C`/POSIX，非 ASCII 直接出乱码。
-- 也可能是文件本身就是 GBK，那就跟环境无关。
-- 定位顺序：先看环境 (`locale`)，再看文件编码 (`file -I`)。
-
-**追问**
-
-- 为什么本地正常、cron 乱码？→ cron 不继承你登录时的 locale 环境。
-- `LANG` 和 `LC_ALL` 谁优先？→ `LC_ALL` 优先，设了它 `LANG` 基本就不起作用。
-- 文件编码怎么管？→ 一律存 UTF-8，别在同一套脚本里混 GBK。
-
-### 2.9 脚本退出码永远 0，监控发现不了失败
-
-**现场**
-
-故意制造一次失败，看 `echo $?` 到底返回什么。
-
-```bash
-set -euo pipefail            # 必须三件套
-trap 'exit_code=$?; log ERROR "第 $LINENO 行失败"; exit $exit_code' ERR
-```
-
-**要点**
-
-- 最后一条命令的退出码就是脚本的退出码，`echo`/`log` 会把前面的失败覆盖掉。
-- 用了管道却没开 `pipefail` 时，取的是最后一段的退出码。
-- 想被监控发现，必须让失败真的变成非 0，而不是只写一行日志。
-
-**追问**
-
-- 加了 `set -e` 为什么还是 0？→ 失败之后的命令成功了，退出码被后面这条覆盖。
-- `trap` 里为什么要先存 `$?`？→ 一进 trap 就会执行别的命令，`$?` 立刻被改掉。
-- 监控该怎么看？→ 只看退出码，别去 grep 日志里的「成功」。
-
-### 2.10 `for` 循环处理文件名带空格的文件出错
-
-**现场**
-
-造一个带空格的文件名试一次，一次就能复现。
-
-```bash
-# ✘
-for f in $(ls *.log); do rm "$f"; done
-
-# ✔ 通配符 + 引号
-for f in *.log; do rm -- "$f"; done
-
-# ✔ find 输出交给 while read
-find . -name "*.log" -print0 | while IFS= read -r -d '' f; do rm -- "$f"; done
-```
-
-**要点**
-
-- `for f in $(ls)` 会按空白分词，`a b.txt` 被拆成两个名字。
-- 根因是命令替换的结果一定会被再分词，加引号也救不回中间那一步。
-- 正确写法是通配符 + 引号：`for f in *.log`，用的时候 `"$f"`。
-
-**追问**
-
-- 文件名里连换行都有怎么办？→ `find -print0` 配 `read -r -d ''`。
-- `*.log` 没匹配到时呢？→ 原样保留字面量，要 `[ -e "$f" ] || continue`。
-- `rm -- "$f"` 里的 `--` 干什么？→ 终止选项解析，防文件名以 `-` 开头。
+自动化的前提是流程稳定、输入可控、失败可观测。三者缺一，脚本只是把不确定性批量执行。
 
 ---
 
-## 三、核心知识：从零开始要建立的东西
+## 八、常见排障
 
-### 3.1 脚本的构成与执行
+脚本问题集中在四类：语法与引号、`set -e` 的例外、环境差异、退出码被覆盖。先排除前两类，再看环境，最后才怀疑命令本身。
 
-**一个文本文件，里面是「你平时一条条敲的命令」，交给 Shell 批量执行。**
+| 现象 | 最可能原因 | 处理 |
+|---|---|---|
+| `set -e` 没停，脚本继续跑 | 命令在 `if`、`&&` 左侧、`!` 后、管道中间、`local x=$(cmd)` 中 | 关键步骤显式 `\|\| die`，管道加 `pipefail` |
+| `unbound variable` 但明明赋过值 | 位置参数未传、空数组、只在某分支赋值 | 用 `${1:-}`、`"${arr[@]:-}"` |
+| `[ -n $VAR ]` 在空值时判真 | 未加引号，展开成单参数 `[ -n ]` | 一律 `[ -n "$VAR" ]` 或改用 `[[ ]]` |
+| `VAR: command not found` | 赋值等号两边有空格 | 写成 `VAR="x"` |
+| 终端能跑，cron 不跑 | PATH 过短、无 LANG、工作目录是家目录 | 脚本内设 PATH、用绝对路径、`cd` 到固定目录 |
+| 退出码永远是 0 | 最后一条 `echo`/`log` 覆盖了失败 | 失败立即 `exit`，或在 `trap` 中保存 `$?` |
+| 文件名带空格被拆成两个 | `for f in $(ls)` 会分词 | `for f in *.log` 并加引号；换行名用 `-print0` |
+| 并发跑出两份 | 无锁，或 PID 文件判断有窗口 | `flock -n`，锁随进程退出释放 |
+| 中文乱码 | 运行环境无 `LANG`，或文件是 GBK | `locale` 看环境，`file -I` 看编码，统一 UTF-8 |
+| 删多了 | 路径变量为空、通配符过宽、`find` 缺 `-type f` | `: "${DIR:?}"`，先 `-print` 再 `-delete` |
+| 密码出现在 `ps` 里 | 密码写在命令行参数 | `--defaults-extra-file`，或从受限环境变量读取 |
+| 函数改了外部变量 | 未写 `local` | 函数内变量一律 `local` |
 
-```bash
-#!/usr/bin/env bash     # ← 这一行叫 shebang
-echo "hello"
-date
-```
+三个必须校准的机制：
 
-三行里有两个知识点：
+**`set -e` 是兜底，不是保证。** 它有一串例外：`if` 条件、`&&`/`||` 左侧、`!` 取反、管道中间（除非 `pipefail`）、`local x=$(cmd)` 赋值。指望它兜住一切，迟早遇到“失败了但脚本继续跑”。
 
-**① shebang（`#!` 开头那一行）告诉内核「用哪个解释器跑这个文件」。**
+**`[` 是命令，`[[` 是语法。** `[` 会分词，变量必须加引号；`[[ ]]` 不分词，支持 `=~` 正则，但只有 bash、ksh、zsh 有，`sh`（Ubuntu 上是 dash）里没有。
 
-```bash
-#!/bin/bash            # 直接指定路径。服务器脚本更推荐这个：行为可预期
-#!/usr/bin/env bash    # 从 PATH 里找 bash；机器间可移植，但 PATH 意外时可能找错解释器
-#!/bin/sh              # POSIX sh：在 Ubuntu 上其实是 dash，很多 bash 语法不支持
-```
+**错误要写 stderr。** `echo "$*" >&2`，否则错误信息与正常输出混在一起，被下游当成数据。清理动作放 `trap`，但不要在 `trap` 里无条件 `exit 0`，否则失败会被改写成成功。
 
-**服务器脚本用 `#!/bin/bash`**：`env` 版的可移植性换来的是不确定性——cron 和 systemd 的 PATH 很短，如果某个目录里放了一个不同版本的 bash，脚本行为就会变。容器或跨机器分发才优先考虑 `env` 版。
-
-**用 `#!/bin/sh` 却写了 `[[ ]]`、数组、`local`，就会报错**——这是新手最常见的失败原因之一。
-
-**② 脚本要能执行，需要两点**：文件有执行权限（`chmod +x`），并且用 `./script.sh` 或绝对路径调用（当前目录通常不在 `PATH` 里）。
-
-```bash
-chmod +x backup.sh      # 加执行权限
-./backup.sh             # 方式一：当命令跑
-bash backup.sh          # 方式二：显式用 bash 解释（不需要 x 权限）
-source backup.sh        # 方式三：在当前 shell 执行（见 3.2）
-```
-
-### 3.2 子进程执行与 source
+脚本行为不对时的排查顺序：
 
 ```mermaid
-flowchart LR
-    classDef a fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef b fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef c fill:#FEF3C7,stroke:#D97706,color:#78350F
-
-    T["你的终端（bash 进程 A）"]:::a --> N["启动新进程 B 跑脚本"]:::b
-    N --> E["B 里 cd / export 只影响 B"]:::c
-    E --> R["B 结束，A 什么都没变"]:::a
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
+flowchart TD
+    A["脚本行为异常"] --> B["bash -n<br/>先排语法"]
+    B --> C["bash -x<br/>看展开后的每一行"]
+    C --> D["shellcheck<br/>未加引号、cd 未检查"]
+    D --> E["env -i bash --noprofile<br/>复现环境差异"]
+    E --> F["抠出失败片段单独执行<br/>缩小到最小复现"]
+    F --> G["最后才怀疑命令或系统"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A,B client
+    class C,D,E engine
+    class F,G image
 ```
 
-| 执行方式 | 是否新进程 | 能否改当前 shell 的 cd / 变量 |
-|---|---|---|
-| `./script.sh` | 是 | 不能 |
-| `bash script.sh` | 是 | 不能 |
-| `source script.sh` / `. script.sh` | **否** | **能** |
-
-**这个区别的实际用途**：
-
-- **要改当前环境**（`cd`、`export`、定义函数）→ 必须 `source`。所以 `~/.bashrc`、`/opt/app/app.env` 都是被 `source` 的。
-- **要做一件事**（备份、清理）→ 用 `./` 或 `bash`，别污染当前 shell。
-
-> **`source` 的坑**：如果被 source 的文件里有 `exit`，会把你的终端一起关掉。
-
-> **面试**：常问「`./script.sh` 和 `source script.sh` 有什么区别？」答：前者起子进程，cd 和变量只影响子进程；后者在当前 shell 执行。
-
-### 3.3 脚本基本结构
-
-一个能用的脚本长这样，**五部分**：
+顺序的道理：语法错、展开错、环境错占绝大多数，且都能在本地几十秒内排除。一上来就怀疑命令有 bug，通常是在错误的方向上花时间。
 
 ```bash
-#!/usr/bin/env bash      # ① shebang
-set -euo pipefail        # ② 严格模式
+# ========== 复现环境差异 ==========
+# 用干净环境执行，排除个人配置与 PATH 干扰
+env -i bash --noprofile --norc ./backup.sh
 
-# ③ 配置：集中放最上面，带默认值
-BACKUP_DIR="${BACKUP_DIR:-/data/backup}"
-KEEP_DAYS="${KEEP_DAYS:-7}"
+# 打印脚本实际看到的 PATH 与工作目录
+printf 'PATH=%s\nPWD=%s\n' "$PATH" "$PWD"
 
-# ④ 函数
-log() { printf '%s %s\n' "$(date '+%F %T')" "$*"; }
-die() { log "ERROR: $*" >&2; exit 1; }
+# 查看脚本使用的解释器与文件编码
+head -1 backup.sh
+file -I backup.sh
 
-# ⑤ 主逻辑，放在 main 里
-main() {
-    [ -d "$BACKUP_DIR" ] || die "目录不存在：$BACKUP_DIR"
-    log "开始"
-}
-
-main "$@"                # 最后调用，把参数传进去
+# 跟踪系统调用，定位文件与权限问题
+strace -f -e trace=openat,execve ./backup.sh
 ```
 
-**为什么要 `main`**：函数里的变量用 `local` 就不会污染全局；`main` 让「定义」和「执行」分开，便于 `source` 进来做单元测试。
-
-### 3.4 严格模式
-
-三个选项各管一件事，**三个都要写**：
-
-| 选项 | 作用 | 不写会怎样 |
-|---|---|---|
-| `-e` | 命令失败（非 0）就退出 | 出错继续跑，后面基于错误状态继续操作 |
-| `-u` | 用未定义变量就退出 | `rm -rf "$TYPO/"` 变成删根 |
-| `-o pipefail` | 管道任一段失败即整体失败 | **备份失败但脚本报成功**（最常见事故） |
-
-**`-e` 的例外**（必须知道，否则会误以为它万能）：`if` 条件里、`&&`/`||` 左边、`!` 取反、管道中间、`local x=$(cmd)`。
-
-**`pipefail` 为什么最重要**：没有它，`mysqldump | gzip > x.gz` 里 mysqldump 失败了，退出码取的是 gzip 的 0。
+若脚本在 cron 下失败，先把 cron 的环境导出到文件，与登录环境逐项对比：
 
 ```bash
-set -o pipefail
-false | true; echo $?        # 有 pipefail：1；没有：0
+# ========== 对比 cron 环境 ==========
+# 在 crontab 中临时加入，下一分钟导出环境
+* * * * * root env > /tmp/cron-env.txt 2>&1
+
+# 与当前登录环境排序后比较
+sort /tmp/cron-env.txt > /tmp/a.txt
+env | sort > /tmp/b.txt
+diff /tmp/a.txt /tmp/b.txt
 ```
 
-> **面试**：常问「`set -euo pipefail` 三个选项各管什么？」答：-e 失败即退、-u 未定义变量即退、pipefail 让管道任一段失败即整体失败。
+多数差异集中在 `PATH`、`HOME`、`LANG`、`SHELL` 四项。脚本应在开头显式设置 `PATH`，所有外部命令使用绝对路径或先 `command -v` 检查，避免依赖调用方的环境。
 
-### 3.5 变量与参数
-
-**赋值**：等号两边**不能有空格**。
-
-```bash
-NAME="web01"          # ✔
-NAME = "web01"        # ✘ 被当成执行命令
-```
-
-**引用**：默认加双引号，除非你明确要分词。
-
-| 写法 | 含义 |
-|---|---|
-| `$VAR` | 分词 + 通配符展开（危险） |
-| `"$VAR"` | 原样一个参数（**默认就这么写**） |
-| `'$VAR'` | 单引号里**不展开**，原样输出 `$VAR` |
-| `${VAR}` | 明确变量名边界（`${VAR}_x` 才不会读成 `$VAR_x`） |
-
-**默认值三兄弟**（非常常用）：
-
-| 写法 | 含义 |
-|---|---|
-| `${VAR:-默认}` | 为空或未定义 → 用默认值 |
-| `${VAR:=默认}` | 同上，并**赋值**给 VAR |
-| `${VAR:?错误}` | 为空 → 打印错误并退出（危险操作的保险） |
-
-**字符串处理**（够用就行）：
-
-```bash
-${#VAR}              # 长度
-${VAR%.*}            # 去掉最后一个 . 及其后面（取文件名）
-${VAR%/*}            # 去掉最后一个 / 及其后面（取目录）
-${VAR#*/}            # 去掉第一个 / 及其前面
-${VAR/old/new}       # 替换第一个
-${VAR//old/new}      # 替换全部
-```
-
-**命令替换**：把命令的输出当成值。
-
-```bash
-NOW=$(date +%F)          # 推荐，可嵌套
-NOW=`date +%F`           # 老写法，不能嵌套
-```
-
-**位置参数**：`$0` 脚本名、`$1` 第一个参数、`$#` 参数个数、`"$@"` 所有参数（**必须加引号**）。
-
-### 3.6 条件判断
-
-| 写法 | 归属 | 特点 |
-|---|---|---|
-| `[ ]` | POSIX 命令 | 兼容性最好，**必须加引号**，不支持 `=~` |
-| `[[ ]]` | bash 语法 | 推荐使用，安全（不分词）、支持 `&&`/`\|\|`/`=~`，**只在 bash/ksh 有** |
-| `(( ))` | bash 算术 | `if (( n > 10 ))`，比 `[ $n -gt 10 ]` 可读 |
-
-**最常用的判断**：
-
-```bash
-# 字符串
-[ -z "$VAR" ]        # 为空
-[ -n "$VAR" ]        # 非空
-[ "$A" = "$B" ]      # 相等（注意 = 两边有空格）
-
-# 数字（用 -eq/-gt 这类，不能用 < >）
-[ "$n" -gt 10 ]
-(( n > 10 ))         # 更直观
-
-# 文件[ -f file ]          # 是普通文件
-[ -d dir ]           # 是目录
-[ -e path ]          # 存在（不分类型）
-[ -r file ]          # 可读
-[ -s file ]          # 存在且非空（判断备份是否为空就用它）
-[ -x file ]          # 可执行
-```
-
-**数字判断的坑**：`[ "$n" -gt 10 ]` 在 `n` 为空或不是数字时会报 `integer expression expected`；`(( n > 10 ))` 把空值当 0，不报错。要严格校验先判断格式：
-
-```bash
-[[ "$n" =~ ^[0-9]+$ ]] || die "n 不是整数：$n"
-```
-
-**`&&` 和 `||` 的短路用法**（比 `if` 简洁，但别嵌套太深）：
-
-```bash
-[ -d /data ] || mkdir -p /data          # 不存在才建
-[ -n "$DB_PASS" ] || die "密码未设置"     # 为空就退出
-```
-
-> **面试**：常问「`[ ]` 和 `[[ ]]` 有什么区别？」答：前者是 POSIX 命令、必须加引号，后者是 bash 语法、不分词且支持 `=~`。
-
-### 3.7 循环
-
-```bash
-# ① 遍历列表
-for env in dev test prod; do
-    echo "部署 $env"
-done
-
-# ② 遍历文件（用通配符，不要用 $(ls)）
-for f in /data/logs/*.log; do
-    [ -e "$f" ] || continue          # 没有匹配时通配符会原样保留，要跳过
-    gzip "$f"
-done
-
-# ③ 按行读文件（最不容易出错）
-while IFS= read -r line; do
-    echo "$line"
-done < hosts.txt
-
-# ④ 数字循环
-for i in $(seq 1 5); do echo "$i"; done
-for ((i=1; i<=5; i++)); do echo "$i"; done
-```
-
-**三个坑**：
-
-| 坑 | 说明 |
-|---|---|
-| `for f in $(ls)` | 按空格分词，文件名带空格会被拆开（见 2.10） |
-| 管道里的 `while` 在子 shell | `cat f \| while read` 里改的变量，循环外看不到。用 `while ... done < f` |
-| 没有匹配时 `*.log` 原样保留 | 要 `[ -e "$f" ] \|\| continue`，或 `shopt -s nullglob` |
-
-### 3.8 函数
-
-```bash
-log() {
-    local level="$1"; shift           # ① local：变量只在函数内有效
-    printf '%s [%s] %s\n' "$(date '+%F %T')" "$level" "$*"
-}                                     # ② $* 是所有参数拼成一个串
-```
-
-**两个必须知道的**：
-
-- **`local` 一定要写**：不写就是全局变量，会意外改掉外面的同名变量
-- **`return` 只能返回 0–255**：要返回字符串，用 `echo` + 命令替换 `result=$(myfunc)`
-
-**参数相关**：`$1` 第一个参数、`$#` 个数、`"$@"` 全部（各自保留引号）、`shift` 把参数左移一位（常用于「取第一个，剩下继续处理」）。
-
-### 3.9 退出码与错误处理
-
-**退出码是脚本和外界沟通的唯一方式**：`0` 成功，非 0 失败。
-
-```text
-1    一般错误
-2    用法/参数错误
-126  权限不够（无法执行）
-127  命令找不到
-128+n 被信号 n 杀掉（130 = Ctrl+C）
-```
-
-**自己约定业务退出码**，让调用方（cron、监控）能区分：
-
-```bash
-die() { echo "$*" >&2; exit "${2:-1}"; }
-die "参数错误" 1
-die "备份失败" 2      # 监控看到 2 就知道是备份问题
-```
-
-> **`echo "$*" >&2` 很关键**：错误信息要写 stderr，否则混在正常输出里会被当成数据。
-
-**`trap` 是清理的唯一正确姿势**：
-
-```bash
-TMP=$(mktemp -d)
-cleanup() { rm -rf "$TMP"; }
-trap cleanup EXIT               # 正常结束、异常退出、被信号杀掉都会执行
-
-trap 'echo "第 $LINENO 行出错"' ERR
-```
-
-| 信号 | 时机 |
-|---|---|
-| `EXIT` | 脚本结束（无论成功失败） |
-| `ERR` | 某条命令失败（配合 `set -e`） |
-| `INT` / `TERM` | Ctrl+C / kill |
-
-> **`trap ... EXIT` 里不要再写会失败的命令**，否则退出码被覆盖，调用方看到的是「成功」。
-
-> **面试**：常问「备份脚本怎么保证失败能被监控发现？」答：让失败真的返回非 0，关键步骤显式 `|| die`，再用 `trap` 把原始退出码存下来。
-
-### 3.10 日志与输出
-
-| 运行方式 | 推荐 | 原因 |
-|---|---|---|
-| 手工执行 | `echo` 到终端 | 直接看 |
-| cron | `>> /var/log/xxx.log 2>&1` | cron 没有终端，不重定向就丢 |
-| systemd | 写 stdout，交给 journald | `journalctl -u xxx` 统一查 |
-
-**一条好日志包含四样**：时间、级别、关键参数、结果。
-
-```bash
-log INFO "备份完成 file=$out size=12M"
-```
-
-**别写只写「失败」的日志**——要能回答「谁失败了、失败在哪一步、当时的参数是什么」。
-
-### 3.11 调试方法
-
-```bash
-bash -x script.sh          # 逐行打印「展开后」的命令（最常用）
-bash -n script.sh          # 只做语法检查，不执行
-set -x / set +x            # 在脚本内部局部开启/关闭
-```
-
-**让 `-x` 的输出更有用**：
-
-```bash
-PS4='+${BASH_SOURCE}:${LINENO}: '     # 打印文件名和行号
-```
-
-**静态检查**：`shellcheck script.sh` 能抓出大部分坑（未加引号、`cd` 未检查、变量拼写），**建议装**。
-
-### 3.12 可维护性
-
-| 做法 | 理由 |
-|---|---|
-| 顶部集中定义变量与默认值 | 改配置不用翻全文 |
-| `main()` + 底部 `main "$@"` | 逻辑集中，便于测试 |
-| 一个函数只做一件事 | 出错时容易定位 |
-| 用 `(cd x && cmd)` 而不是 `cd x` | 不影响后续逻辑 |
-| 危险操作用 `: ${VAR:?}` 兜底 | 变量为空时立刻退出 |
-| 不留注释掉的死代码 | 版本管理会记住历史 |
-
----
-
-## 四、冷门知识汇总
-
-| 知识点 | 为什么冷门 | 用到时的关键词 |
-|---|---|---|
-| `shopt -s nullglob` | 通配符没匹配时才需要 | 默认会原样保留 `*.log` |
-| 进程替换 `<(...)` | 需要「把命令输出当文件」时 | `diff <(sort a) <(sort b)` |
-| `${!name}` 间接引用 | 写通用校验函数时才会用 | `ref="VAR_x"; echo "${!ref}"` |
-| `${VAR@Q}` | bash 5 才有，输出带引号的安全形式 | `printf '%q'` 的替代 |
-| 关联数组 `declare -A` | 需要 map 结构时才用 | `declare -A m; m[k]=v` |
-| `mapfile` / `readarray` | 一次读文件进数组 | `mapfile -t lines < f` |
-| `wait -n` | 并发任务等「任意一个」完成 | bash 4.3+ |
-| `printf` 对齐 | 需要表格化输出时 | `printf "%-20s %s\n"` |
-| `numfmt` | 字节转人类可读 | `numfmt --to=iec 1048576` |
-| `mktemp -d` | 临时目录，配合 `trap` 清理 | `TMP=$(mktemp -d)` |
-| `PS4` 自定义 | 调试时让 `-x` 带行号 | `PS4='+${BASH_SOURCE}:${LINENO}: '` |
-| `time` / `$SECONDS` | 统计脚本耗时 | `SECONDS=0; ...; echo $SECONDS` |
-| `bc` / `awk` | bash 只支持整数运算 | `echo "scale=2; 7/3" \| bc` |
-| `jq` | 处理 JSON 返回值 | `curl ... \| jq -r '.data.id'` |
-| `crontab -r` 危险 | 无确认直接清空所有任务 | 别在生产上按 |
-| 退出码 128+n | 被信号杀掉的判定方式 | `$?` = 130 → SIGINT |
-| `BASH_SOURCE` | 取当前脚本路径（找同目录的其他文件） | `cd "$(dirname "${BASH_SOURCE[0]}")"` |
+最后一条实践：脚本改动后必须重新跑一遍验收，尤其是涉及删除、覆盖、凭据的改动。脚本的错误会被定时任务放大，每天执行一次，错误也会每天发生一次。

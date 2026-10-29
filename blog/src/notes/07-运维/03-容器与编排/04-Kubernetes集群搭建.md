@@ -1,749 +1,1135 @@
 # Kubernetes 集群搭建
 
-## 一、工程案例：用 kubeadm 搭出 1 master + 2 worker 并能扛住一次节点宕机
+---
 
-**场景**：不买托管集群，用三台云服务器（Ubuntu 24.04，2C4G，40G SSD，内网互通）自建一套生产集群。验收标准不是"能起来"，而是：任意一台 worker 重启，业务自动迁到另一台继续服务；etcd 有每日备份且能验证；证书到期前能续。
+## 一、Kubernetes 集群是什么
 
-**为什么不用 minikube**：单机集群里"节点失联"和"整机重启"是同一件事，永远练不出排障手感。真实集群里的 NotReady、CNI 不通、join 失败，只有在多节点环境才会遇到。
+### 1.1 核心概念
+
+Kubernetes 集群是由多台机器组成、对外表现为一个调度单元的容器编排系统。使用者提交描述期望状态的 YAML，控制平面持续把实际状态收敛到期望状态，而不是逐台登录机器执行命令。这种“声明式提交 + 控制循环调谐”的工作方式，决定了集群里几乎所有现象都能用同一句话解释：某个控制器发现实际值不等于期望值，于是采取了动作。
+
+一个具体例子能说明整套机制：提交一个 3 副本的 Deployment 后，controller-manager 创建 ReplicaSet，ReplicaSet 创建 3 个 Pod 对象，scheduler 为没有节点的 Pod 选好节点并写回，目标节点的 kubelet 看到分配给自己的 Pod 就调用运行时创建容器。中途任何一步失败，都会有对应的控制器重新尝试，直到实际副本数等于 3。整个过程没有“执行部署”这个动作，只有对象状态的持续收敛。
+
+集群与单机容器运行时的差别不在命令语法，而在**失败模型**。单机上容器退出就是退出；集群里还要面对节点失联、网络分区、证书过期、etcd 失去多数派。搭建集群的本质，是把这些失败场景提前用冗余和约束兜住，所以验收标准不是“`kubectl` 能连上”，而是“挂掉一台 worker，业务自己回来；证书到期前有人知道；etcd 备份能恢复”。
+
+| 概念 | 含义 | 在搭建中的落点 |
+|---|---|---|
+| 期望状态 | 用户写入 API 的对象描述 | 各类 YAML 清单 |
+| 调谐循环 | 控制器对比实际与期望并纠偏 | 副本补齐、节点重调度 |
+| 静态 Pod | 由 kubelet 直接读清单启动的 Pod | 控制平面组件的运行形式 |
+| 引导令牌 | 新节点加入时的一次性凭证 | `kubeadm join` 的 token |
+| 集群标识 | 集群名、Pod CIDR、Service CIDR、DNS 域名 | 初始化时一次性确定 |
+
+集群里有两种角色。**控制平面**保存集群状态并做全局决策，**工作节点**负责运行实际负载。角色只是标签和组件的差别，同一台机器可以同时承担两者，但生产环境不这样用，因为控制平面被业务负载拖垮会波及整个集群。
+
+### 1.2 与相邻技术的关系
+
+kubeadm 是上游提供的**引导工具**，不是集群管理系统。它负责生成证书、拉起控制平面、签发 join 命令；不负责节点配置、CNI 选型、备份、监控、升级编排。把这四件事当成 kubeadm 的功能，会在第一次故障时发现无人负责。
+
+容器运行时通过 CRI（Container Runtime Interface）接入，kubelet 不直接调用 Docker。K8s 1.24 起不再内置 Docker 支持，节点上装的是 containerd 或 CRI-O，Docker 只在开发机做镜像构建。网络由 CNI 插件实现，存储由 CSI 驱动实现，两者都是可替换的外部组件，集群本身只定义接口。
+
+与单机编排工具相比，Compose 解决的是“一台机器上多个容器怎么一起起”，K8s 解决的是“多台机器上容器怎么调度、怎么自愈、怎么滚动”。前者没有节点概念，也就没有节点失联后的重调度。
+
+| 技术 | 与本篇的关系 | 边界 |
+|---|---|---|
+| containerd | 节点上的容器运行时，通过 CRI 对接 kubelet | 不负责编排与调度 |
+| CNI 插件 | 给 Pod 分配 IP、打通跨节点网络 | 不负责 Service 负载均衡 |
+| CSI 驱动 | 为 PVC 提供实际存储 | 不负责应用数据一致性 |
+| kubeadm | 引导控制平面、签发加入凭证 | 不做日常运维与备份 |
+| 托管 K8s | 云厂商代管控制平面 | 网络模型与权限受平台约束 |
+
+### 1.3 架构组成
+
+```mermaid
+flowchart TB
+    U["kubectl / CI 流水线"] --> API["kube-apiserver<br/>唯一入口，认证与鉴权"]
+    API --> ETCD["etcd<br/>集群唯一事实来源"]
+    API --> SCH["kube-scheduler<br/>为 Pod 选择节点"]
+    API --> CM["controller-manager<br/>调谐副本与节点状态"]
+    SCH --> KUBELET["kubelet<br/>管理本机 Pod 生命周期"]
+    CM --> KUBELET
+    KUBELET --> CRI["containerd<br/>拉镜像、创建容器"]
+    KUBELET --> CNI["CNI 插件<br/>分配 Pod IP"]
+    PROXY["kube-proxy<br/>维护 Service 转发规则"] --> API
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class U client
+    class API,SCH,CM,KUBELET,PROXY engine
+    class ETCD,CRI,CNI image
+```
+
+所有读写都经过 apiserver，其他组件之间不直接通信，这是集群能保持一致的根源。scheduler 和 controller-manager 都是“监听 API、写回 API”的客户端，它们不保存权威状态，重启后从 apiserver 重新同步即可。etcd 是唯一持久化状态的地方，因此它的磁盘性能和备份策略直接决定集群的可靠性。
+
+| 组件 | 职责 | 异常时的典型表现 |
+|---|---|---|
+| kube-apiserver | 认证、鉴权、准入、读写 etcd | `kubectl` 全部超时，节点转 NotReady |
+| etcd | 保存全部集群状态 | apiserver 报错，写操作失败 |
+| kube-scheduler | 为新 Pod 选节点 | Pod 长期 Pending，事件无调度记录 |
+| controller-manager | 副本、节点、端点等控制器 | 副本不补齐，节点不驱逐 |
+| kubelet | 拉起并监控本机 Pod | 节点 NotReady，`crictl ps` 有残留容器 |
+| kube-proxy | 把 Service 规则落到 iptables/IPVS | Service 有 ClusterIP 但连不通 |
+
+控制平面的四个组件以静态 Pod 形式运行，清单放在 `/etc/kubernetes/manifests`，由 kubelet 监视文件变化并重建容器。这意味着 apiserver 挂了不能靠 `kubectl` 修，只能登录节点改文件或看容器日志。
+
+---
+
+## 二、集群规划与主机准备
+
+### 2.1 拓扑与角色规划
+
+学习环境用 1 master + 2 worker 足够跑通全部流程，但必须清楚它的可用性上限就是那台 master。多节点不是为了性能，而是为了能观察到节点失联、Pod 驱逐、跨节点网络这些单机环境永远不会出现的现象。
+
+> **版本现状（2026-10）**：K8s 稳定线为 v1.37，补丁号以官方 Releases 为准；Calico 3.33；节点系统用 Ubuntu 24.04（cgroup v2）。K8s 1.35 起 kubelet 拒绝在 cgroup v1 上启动，老系统先升级内核与 init，不要绕过检查硬装。
 
 | 角色 | 主机名 | IP（示例） | 配置 |
 |---|---|---|---|
-| 控制平面 | k8s-master | 192.168.1.10 | 2C4G / 40G SSD |
-| 工作节点 | k8s-node1 | 192.168.1.11 | 2C4G / 40G SSD |
-| 工作节点 | k8s-node2 | 192.168.1.12 | 2C4G / 40G SSD |
+| 控制平面 | k8s-master | 192.0.2.10 | 2C4G / 40G SSD |
+| 工作节点 | k8s-node1 | 192.0.2.11 | 2C4G / 40G SSD |
+| 工作节点 | k8s-node2 | 192.0.2.12 | 2C4G / 40G SSD |
 
-**版本口径**：本文以 v1.28 系列为基线演示，命令与流程和版本无关。**实际安装时一律先 `apt-cache madison kubeadm` 查源里真实可装的版本，不要凭记忆写版本号。**containerd 用当前稳定版，Calico 同理。
+表中的 `192.0.2.0/24` 是 RFC 5737 保留的文档示例网段，实际部署换成内网地址。规划阶段要一次性定下三件事：控制平面入口的域名、Pod 网段、Service 网段。这三项在 `init` 时写进证书和组件参数，事后修改代价极高。
 
-**单 master 集群的取舍**：master 默认带 `control-plane:NoSchedule` 污点，业务不会落上去，等于白白少一台机器的算力。如果三台都想干活，要么去掉污点（生产不推荐，控制平面被业务拖垮会全集群瘫痪），要么把可分配资源调大让控制平面只占一小部分。本案例按生产口径保留污点，验收第 3、4 项就是验证这一点。
+规格上最容易被低估的是 etcd。它每次提交都要 fsync 到磁盘，磁盘延迟高会直接拖慢所有写操作，表现为 `kubectl apply` 很慢、apiserver 超时、节点心跳延迟。2C4G 是学习环境的底线，生产控制平面建议 4C8G 起，数据盘用本地 SSD，不要与日志盘混用。
 
-```mermaid
-flowchart TD
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef data fill:#FEF3C7,stroke:#D97706,color:#78350F
+生产环境不要用单 master。控制平面挂了，现有 Pod 还能跑，但不能发布、不能调度、不能改配置。控制平面要 3 台且为奇数，etcd 与控制平面同居（stacked）或独立部署。**2 台 master 比 1 台更糟**，因为 etcd 需要多数派，两台之间任意一台故障都会让整个集群写不进去。
 
-    S1["系统准备：主机名 内核参数 关 swap"]:::client
-    S2["装 containerd 并设 SystemdCgroup"]:::data
-    S3["装 kubeadm kubelet kubectl"]:::service
-    S4["kubeadm init 控制平面"]:::service
-    S5["装 CNI 网络插件"]:::data
-    S6["worker 执行 join"]:::service
-    S7["验收 与 备份"]:::service
+控制平面默认带 `node-role.kubernetes.io/control-plane:NoSchedule` 污点，业务 Pod 不会落上去。学习环境可以为了省机器去掉它，生产环境不要这样做。
 
-    S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
-```
-
-### 1.1 主线（三台机器都要执行 ①②）
+### 2.2 主机名与名称解析
 
 ```bash
-# ============ ① 系统准备（三台都做，主机名各自不同）============
-sudo hostnamectl set-hostname k8s-master      # node1/node2 按需改
+# ========== 主机名 ==========
+# 每台机器改成自己的名字，join 时节点名默认取这里
+sudo hostnamectl set-hostname k8s-master
+
+# ========== 名称解析 ==========
+# 控制平面入口必须能被所有节点解析，学习环境直接写 hosts
 sudo tee -a /etc/hosts >/dev/null <<'EOF'
-192.168.1.10 k8s-master
-192.168.1.11 k8s-node1
-192.168.1.12 k8s-node2
+192.0.2.10 k8s-master k8s-api.example.internal
+192.0.2.11 k8s-node1
+192.0.2.12 k8s-node2
 EOF
 
-# 关 swap：kubelet 默认拒绝在开启 swap 的机器上运行
-sudo swapoff -a
-sudo sed -i '/\sswap\s/s/^/#/' /etc/fstab
+# 验证解析结果，后面证书 SAN 依赖这个名字
+getent hosts k8s-api.example.internal
 
-# 内核模块：overlay 给 overlayfs，br_netfilter 让 iptables 处理网桥流量
+# ========== 时间同步 ==========
+# TLS 证书校验、etcd 选举、token 过期判断都依赖准确时钟
+sudo timedatectl set-timezone Asia/Shanghai
+# 开启 NTP 自动校时，集群所有节点必须同源
+sudo timedatectl set-ntp true
+# 确认时区与同步状态，System clock synchronized 应为 yes
+timedatectl status
+```
+
+`controlPlaneEndpoint` 用一个固定域名而不是 master 的 IP，是为了将来从单 master 扩成高可用时不必重新签发证书。域名指向哪里由 DNS 或 hosts 决定，证书里只认这个名字。
+
+> **注意**：节点时间偏差超过几分钟，join 会直接报 x509 证书尚未生效或已过期，而证书本身完全正常。遇到这类报错先 `date` 对比，不要急着重签证书。
+
+### 2.3 内核模块与转发参数
+
+这几步不是安装仪式，每一个都对应一类具体故障。
+
+```bash
+# ========== 关闭 swap ==========
+# kubelet 默认拒绝在开启 swap 的节点上启动
+sudo swapoff -a
+# 注释掉 fstab 里的 swap 行，重启后才不会恢复
+sudo sed -i '/\sswap\s/s/^/#/' /etc/fstab
+# 确认 Swap 一行全为 0
+free -h
+
+# ========== 加载内核模块 ==========
+# overlay 供 overlayfs 存储驱动使用，br_netfilter 让 iptables 处理网桥流量
 sudo tee /etc/modules-load.d/k8s.conf >/dev/null <<'EOF'
 overlay
 br_netfilter
 EOF
-sudo modprobe overlay && sudo modprobe br_netfilter
+# 立即加载，避免等到重启
+sudo modprobe overlay
+# 同上，Service 的 DNAT 规则依赖这个模块
+sudo modprobe br_netfilter
+# 确认两个模块已在内存中
+lsmod | grep -E 'overlay|br_netfilter'
 
-# 内核参数：ip_forward 让 Pod 出网，bridge-nf-call-iptables 让 Service 转发生效
+# ========== 转发参数 ==========
+# Pod 出网、Service 转发都依赖这三个参数
 sudo tee /etc/sysctl.d/k8s.conf >/dev/null <<'EOF'
 net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
 EOF
-sudo sysctl --system >/dev/null
+# 重新加载全部 sysctl 配置
+sudo sysctl --system
+# 单独确认转发已开启，输出应为 1
+sysctl net.ipv4.ip_forward
 
-# 时间同步：证书校验、etcd 选举都依赖准确时钟
-sudo timedatectl set-timezone Asia/Shanghai
-sudo apt update -qq && sudo apt install -y -qq chrony
-sudo systemctl enable --now chrony
-
-# ============ ② containerd（三台都做）============
-sudo apt install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-sudo apt update && sudo apt install -y containerd.io
-
-sudo mkdir -p /etc/containerd
-containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
-# ★ 最关键的一行：cgroup 驱动必须和 systemd 对齐
-sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-# pause 镜像走国内源，否则 init 会卡在拉沙箱镜像
-sudo sed -i 's#sandbox_image = ".*"#sandbox_image = "registry.aliyuncs.com/google_containers/pause:3.9"#' /etc/containerd/config.toml
-
-sudo systemctl enable --now containerd
-sudo systemctl restart containerd
-
-# ============ ③ kubeadm / kubelet / kubectl（三台都做）============
-sudo apt install -y apt-transport-https ca-certificates curl
-curl -fsSL https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg \
-  | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
-https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main" \
-  | sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
-sudo apt update
-
-K8S_MINOR=1.28                                                       # 想装哪个小版本就改这里
-K8S_VER=$(apt-cache madison kubeadm | awk -v m="$K8S_MINOR" '$3 ~ "^"m"\\." {print $3; exit}')
-K8S_PATCH="v${K8S_VER%-*}"                                           # 1.28.2-00 → v1.28.2
-echo "准备安装: ${K8S_VER} → ${K8S_PATCH}"
-sudo apt install -y kubelet=${K8S_VER} kubeadm=${K8S_VER} kubectl=${K8S_VER}
-sudo apt-mark hold kubelet kubeadm kubectl
+# ========== cgroup 版本 ==========
+# K8s 1.35 起 kubelet 拒绝在 cgroup v1 上启动
+stat -fc %T /sys/fs/cgroup
 ```
 
-```bash
-# ============ ④ 只在 master 上：初始化控制平面 ============
-# 版本号必须和 apt 装的一致，否则 init 会去拉另一个版本
-K8S_PATCH=v1.28.2        # ★ 换成第 ③ 步 ${K8S_PATCH} 打印出来的值
-sudo kubeadm config images pull \
-  --image-repository=registry.aliyuncs.com/google_containers \
-  --kubernetes-version=${K8S_PATCH}
+最后一条预期输出 `cgroup2fs`。输出 `tmpfs` 说明系统仍是 cgroup v1，需要修改内核启动参数开启 unified hierarchy 后重启，不要在这个状态下继续安装。
 
-sudo kubeadm init \
-  --apiserver-advertise-address=192.168.1.10 \
-  --image-repository=registry.aliyuncs.com/google_containers \
-  --kubernetes-version=${K8S_PATCH} \
-  --pod-network-cidr=10.244.0.0/16 \
-  --service-cidr=10.96.0.0/12 \
-  --cri-socket=unix:///run/containerd/containerd.sock
+- **关 swap**：kubelet 默认拒绝在 swap 开启时启动；即使通过 `failSwapOn: false` 强行放开，内存压力和驱逐行为也会变得不可预测，QoS 承诺失效。
+- **br_netfilter + bridge-nf-call-iptables**：让 iptables 能处理网桥流量，Service 的 DNAT 规则才会对 Pod 生效。漏了它，ClusterIP 能解析但连不上。
+- **ip_forward**：Pod 跨节点访问和出网都依赖转发。关了它，同节点可能通，跨节点必断。
 
-mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
-kubectl get nodes     # 此时 NotReady 是预期的，因为还没装 CNI
-```
+### 2.4 防火墙与端口放行
 
-```bash
-# ============ ⑤ 只在 master 上：装 CNI ============
-# ★ 先查 Calico 官方支持矩阵，选与 K8s 版本匹配的那个，不要凭记忆写
-CALICO_VER="${CALICO_VER:?先按官方支持矩阵设置 Calico 版本，如 v3.28.x}"
-curl -O https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VER}/manifests/tigera-operator.yaml
-curl -O https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VER}/manifests/custom-resources.yaml
-# ★ Calico 默认 192.168.0.0/16，必须和 init 的 --pod-network-cidr 一致
-sed -i 's#cidr: 192.168.0.0/16#cidr: 10.244.0.0/16#' custom-resources.yaml
-grep cidr custom-resources.yaml
+云主机还要在安全组里放行同样的端口，只改本机防火墙是不够的。
 
-kubectl create -f tigera-operator.yaml
-kubectl create -f custom-resources.yaml
-kubectl get pods -n calico-system -w     # 等到 calico-node Ready
-```
-
-```bash
-# ============ ⑥ 两个 worker 上：加入集群 ============
-# 在 master 上取命令（token 24 小时过期，过期就重新生成）
-kubeadm token create --print-join-command
-
-# 在 node1 / node2 上执行（命令最后补上 cri-socket）
-sudo kubeadm join 192.168.1.10:6443 --token <token> \
-  --discovery-token-ca-cert-hash sha256:<hash> \
-  --cri-socket=unix:///run/containerd/containerd.sock
-```
-
-**关键输出**：
-
-```text
-$ kubectl get nodes -o wide
-NAME         STATUS   ROLES           AGE   VERSION   INTERNAL-IP
-k8s-master   Ready    control-plane   15m   v1.28.2   192.168.1.10
-k8s-node1    Ready    <none>          3m    v1.28.2   192.168.1.11
-k8s-node2    Ready    <none>          2m    v1.28.2   192.168.1.12
-```
-
-> 三个都 `Ready` 才算通。节点 `NotReady` 时先看 `describe node` 的 Conditions，`NetworkReady=false` 就是 CNI 没起来，别去查 CNI 之外的组件。
-
-### 1.2 验收（9 项）
-
-| # | 检查 | 命令 | 通过标准 |
+| 组件 | 端口 | 协议 | 来源 |
 |---|---|---|---|
-| 1 | 三节点就绪 | `kubectl get nodes` | 三个 `Ready` |
-| 2 | 系统组件全 Running | `kubectl get pods -A \| grep -v Running` | 只剩 `Completed` 的 Job |
-| 3 | 控制平面有污点 | `kubectl describe node k8s-master \| grep Taints` | `control-plane:NoSchedule` |
-| 4 | 业务不落 master | 部署 4 副本后 `get pods -o wide` | 全在 node1/node2 |
-| 5 | 跨节点网络 | 从 node1 的 Pod curl node2 的 Pod IP | 返回 200 |
-| 6 | 集群 DNS | `nslookup kubernetes.default` | 解析到 `10.96.0.1` |
-| 7 | containerd 驱动对齐 | `grep SystemdCgroup /etc/containerd/config.toml` | `true` |
-| 8 | 节点自愈 | 重启 node1 后 `get nodes -w` | NotReady → Ready，Pod 迁走 |
-| 9 | etcd 备份可用 | `etcdctl snapshot status <文件>` | 有 REVISION 和 TOTAL KEYS |
+| kube-apiserver | 6443 | TCP | 所有节点、运维网段 |
+| etcd | 2379–2380 | TCP | 仅控制平面之间 |
+| kubelet | 10250 | TCP | 控制平面 |
+| controller-manager | 10257 | TCP | 本机、监控 |
+| scheduler | 10259 | TCP | 本机、监控 |
+| NodePort | 30000–32767 | TCP/UDP | 入口负载均衡 |
+| Calico VXLAN | 4789 | UDP | 所有节点 |
+| Calico BGP | 179 | TCP | 所有节点（用 BGP 时） |
 
 ```bash
-# 第 4~6 项的具体命令
-kubectl create deployment verify --image=nginx:1.27 --replicas=4
-kubectl get pods -o wide -l app=verify
+# ========== firewalld ==========
+# 放行控制平面入口，所有节点和运维机都要能连
+sudo firewall-cmd --permanent --add-port=6443/tcp
+# 放行 etcd 对等通信，仅控制平面之间需要
+sudo firewall-cmd --permanent --add-port=2379-2380/tcp
+# 放行 kubelet 指标与 exec 端口，来源限控制平面
+sudo firewall-cmd --permanent --add-port=10250/tcp
+# 重载规则使永久配置生效
+sudo firewall-cmd --reload
+# 确认端口已放行
+sudo firewall-cmd --list-ports
 
-# nginx 官方镜像没有 ping，用 curl 测连通
-kubectl exec <verify的Pod名> -- curl -s -o /dev/null -w "%{http_code}\n" http://<对端PodIP>
-
-kubectl run dnstest --image=busybox:1.36 --rm -it --restart=Never -- nslookup kubernetes.default
-kubectl delete deployment verify
+# ========== ufw ==========
+# Ubuntu 若启用了 ufw，同样按上面的端口表放行
+sudo ufw allow 6443/tcp
+# etcd 端口范围写法与 firewalld 不同，用冒号
+sudo ufw allow 2379:2380/tcp
+# kubelet 端口
+sudo ufw allow 10250/tcp
+# 查看带序号的规则，便于后续删除
+sudo ufw status numbered
 ```
 
-> 第 5 项必须**跨节点**测。同节点 Pod 互通只能证明网桥通，证明不了 CNI 的跨节点路由。
-> 每个节点会分到一个 Pod 子网（`10.244.1.x`、`10.244.2.x`），这个规律能在 `-o wide` 里直接看出来。
-
-### 1.3 搭完立刻做的两件事
-
-```bash
-# ① etcd 每日备份（丢了就彻底没救，不能"以后再说"）
-sudo apt install -y etcd-client
-sudo tee /etc/cron.daily/etcd-backup >/dev/null <<'EOF'
-#!/bin/bash
-export ETCDCTL_API=3
-DIR=/opt/backup/etcd; mkdir -p "$DIR"
-etcdctl snapshot save "$DIR/etcd-$(date +%F).db" \
-  --endpoints=https://127.0.0.1:2379 \
-  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
-  --cert=/etc/kubernetes/pki/etcd/server.crt \
-  --key=/etc/kubernetes/pki/etcd/server.key
-chmod 600 "$DIR"/etcd-*.db
-find "$DIR" -name 'etcd-*.db' -mtime +7 -delete
-EOF
-sudo chmod 700 /etc/cron.daily/etcd-backup
-
-# ② 证书到期检查（默认 1 年，过期当天整个集群不可用）
-sudo kubeadm certs check-expiration
-```
-
-> 备份文件里有全部 Secret，必须 `chmod 600` 并放到另一台机器。备份和原数据在同一块盘上等于没备份。
+> **运维提示**：etcd 的 2379/2380 只对控制平面开放。这两端口暴露到业务网段等于把集群数据库交出去，etcd 里存着全部 Secret 和配置。
 
 ---
 
-## 二、高频问答：会卡住你的地方，也是面试最常问的
+## 三、容器运行时安装
 
-### 2.1 节点 `NotReady`，`describe node` 显示 `NetworkReady=false`
+### 3.1 安装 containerd
 
-**现场**
+节点上只需要容器运行时，不需要 Docker Engine。用 Docker 官方仓库的 `containerd.io` 包，版本与上游同步，也省去自己编译。
 
-看 Condition 的 Reason 字段，再看 calico-system 里的 Pod 状态。
+> **版本现状（2026-10）**：containerd 当前维护线为 2.3 LTS 与 2.4，`containerd.io` 装到的就是最新稳定版。它与 K8s 1.37 的 CRI 接口兼容，升级时跟随节点一起规划，不要单独跳到未验证的大版本。
 
 ```bash
-kubectl describe node k8s-node1 | grep -A 10 Conditions
+# ========== 准备依赖与密钥 ==========
+# ca-certificates 用于 TLS 校验，gnupg 用于导入仓库签名密钥
+sudo apt update
+# 安装三个基础工具
+sudo apt install -y ca-certificates curl gnupg
+# 创建存放密钥的目录，权限必须为 0755
+sudo install -m 0755 -d /etc/apt/keyrings
+# 下载并转换 Docker 仓库签名密钥，gpg 需要二进制格式
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+# apt 读取密钥要求可读
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# ========== 添加仓库 ==========
+# 只加 docker 仓库，装包时只取 containerd.io
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+# 刷新索引后才能看到 containerd.io
+sudo apt update
+
+# ========== 安装并启动 ==========
+# containerd.io 自带 systemd 单元，装完即可托管
+sudo apt install -y containerd.io
+# 设为开机自启并立即启动
+sudo systemctl enable --now containerd
+# 确认服务为 active (running)
+systemctl status containerd --no-pager
+```
+
+### 3.2 生成并修改配置
+
+```bash
+# ========== 生成默认配置 ==========
+# 先导出默认配置再改，不要手写整个文件，避免漏字段
+sudo mkdir -p /etc/containerd
+# 默认配置输出到标准输出，重定向写入目标文件
+containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
+
+# ========== 关键修改 ==========
+# kubelet 与 containerd 的 cgroup 驱动必须一致，统一为 systemd
+sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+
+# 确认修改生效，输出应为 SystemdCgroup = true
+grep -n 'SystemdCgroup' /etc/containerd/config.toml
+
+# ========== 重启并验证 ==========
+# 配置改动必须重启才加载
+sudo systemctl restart containerd
+# 确认重启后服务正常
+sudo systemctl status containerd --no-pager
+
+# ctr 是 containerd 自带的调试客户端，Client 与 Server 都要有版本输出
+sudo ctr version
+```
+
+| 配置项 | 建议值 | 配错的后果 |
+|---|---|---|
+| `SystemdCgroup` | `true` | kubelet 报 cgroup driver 不一致，节点起不来 |
+| `sandbox_image` | 与集群版本匹配的 pause 镜像 | Pod 沙箱创建失败，全部 Pod 卡在 ContainerCreating |
+| `[plugins."io.containerd.grpc.v1.cri".registry]` | 走 `certs.d` 目录配置镜像源 | 拉取超时，init 卡在拉镜像 |
+| `oom_score` | 保持默认 | 内存压力下容器被误杀 |
+
+`ctr version` 必须同时有 Client 和 Server 两段输出。只有 Client 说明守护进程没起来，先看 `journalctl -u containerd`。
+
+`sandbox_image` 指向 pause 镜像，每个 Pod 启动前都要先跑一个 pause 容器占住网络命名空间，业务容器再加入这个命名空间。它不承载业务逻辑，但 Pod 的所有网络配置都挂在它身上。镜像地址与集群版本不匹配时，kubelet 会一直报沙箱创建失败，Pod 卡在 `ContainerCreating`，事件里能看到镜像拉取错误而不是应用错误。
+
+镜像拉不下来时，按《Containerd 容器运行时》笔记在 `/etc/containerd/certs.d` 下配置镜像加速，不要在这里把 pause 镜像硬编码成第三方地址。硬编码会让升级时沙箱版本与 kubelet 期望不一致。
+
+### 3.3 运行时验证
+
+```bash
+# ========== 用 crictl 检查 ==========
+# crictl 走 CRI 接口，是节点上排查 Pod 的正确工具
+sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock version
+
+# 写入默认端点，后续命令不必每次带参数
+sudo tee /etc/crictl.yaml >/dev/null <<'EOF'
+runtime-endpoint: unix:///run/containerd/containerd.sock
+image-endpoint: unix:///run/containerd/containerd.sock
+timeout: 10
+debug: false
+EOF
+
+# 查看已有容器，此时应为空
+sudo crictl ps -a
+# 查看已有镜像，此时应为空
+sudo crictl images
+```
+
+> **注意**：节点上不要用 `docker ps` 调试 K8s 容器。容器由 containerd 管理，Docker 看不到它们，装了 Docker 反而容易误判为“容器不见了”。
+
+---
+
+## 四、kubeadm 组件安装
+
+### 4.1 添加软件源
+
+```bash
+# ========== 导入 Kubernetes 仓库密钥 ==========
+# v1.37 是仓库路径的一部分，升级大版本时要换路径
+sudo apt install -y apt-transport-https ca-certificates curl gpg
+# 创建密钥目录
+sudo mkdir -p -m 755 /etc/apt/keyrings
+# 下载并转换仓库签名密钥
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.37/deb/Release.key \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+# ========== 写入仓库地址 ==========
+# 只保留这一个仓库文件，避免与其他版本的源冲突
+sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null <<'EOF'
+deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.37/deb/ /
+EOF
+# 刷新索引，否则查不到 kubeadm
+sudo apt update
+
+# ========== 查看可用版本 ==========
+# 输出里能看到 1.37.x 的补丁号，后续升级要用完整版本串
+apt-cache madison kubeadm | head
+```
+
+### 4.2 安装与版本锁定
+
+```bash
+# ========== 安装三个组件 ==========
+# kubelet 跑节点上的 Pod，kubeadm 建集群，kubectl 是客户端
+sudo apt install -y kubelet kubeadm kubectl
+
+# ========== 锁定版本 ==========
+# 防止系统自动升级把节点升到不兼容的小版本
+sudo apt-mark hold kubelet kubeadm kubectl
+# 确认三个包都在 hold 列表中
+apt-mark showhold
+
+# ========== 验证 ==========
+# 确认 kubeadm 版本
+kubeadm version -o short
+# 确认 kubelet 版本与仓库一致
+kubelet --version
+# 确认客户端版本，不连接集群
+kubectl version --client
+```
+
+`apt-mark hold` 是集群稳定的第一道防线。不锁版本，一次例行 `apt upgrade` 就可能让某台节点的 kubelet 比 apiserver 高一个小版本，节点注册直接失败。升级必须走独立流程，一台一台来。
+
+kubeadm 的版本偏差策略允许 kubelet 比 apiserver 落后若干个小版本（当前为 3 个），但反过来不行，kubectl 也要求与 apiserver 相差不超过一个小版本。这条规则解释了为什么升级必须“控制平面先、worker 后”：先升 apiserver 仍在容忍范围内，先升 kubelet 则立刻越界。规划升级窗口时，把顺序写进变更单比记住规则更可靠。
+
+| 命令 | 职责 | 安装范围 |
+|---|---|---|
+| `kubeadm` | 初始化控制平面、签发加入命令、升级编排 | 所有节点 |
+| `kubelet` | 接收 Pod 规格、管理容器生命周期 | 所有节点 |
+| `kubectl` | 访问 apiserver 的客户端 | 控制平面与运维机 |
+
+### 4.3 安装后前置检查
+
+```bash
+# ========== 服务状态 ==========
+# 此时 kubelet 会反复重启，因为没有 kubelet.conf，属于正常现象
+systemctl is-enabled kubelet
+# 查看失败原因，应能看到缺少配置或 CA
+systemctl status kubelet --no-pager
+
+# ========== 运行时连通性 ==========
+# kubeadm 通过 CRI 找运行时，socket 路径必须存在
+ls -l /run/containerd/containerd.sock
+
+# ========== 端口占用 ==========
+# 6443、10250 被旧进程占用时 init 会失败
+sudo ss -lntp | grep -E '6443|10250|2379'
+```
+
+kubelet 在 init 之前反复重启是预期行为，它缺 `/etc/kubernetes/kubelet.conf` 和集群 CA。不要因为这个状态去改 kubelet 配置或重装，初始化完成后它会自己稳定。
+
+---
+
+## 五、控制平面初始化
+
+### 5.1 编写 kubeadm 配置文件
+
+生产环境把参数写进配置文件，而不是堆在命令行。配置文件能进 Git、能 review、能复用，也能明确记录“这套集群当初是怎么定的”。
+
+```yaml
+# 节点级配置：本机地址、节点名、运行时 socket
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: 192.0.2.10        # 本机内网 IP，必须与其他节点互通
+  bindPort: 6443                      # apiserver 监听端口
+nodeRegistration:
+  name: k8s-master                    # 节点名，集群内唯一
+  criSocket: unix:///run/containerd/containerd.sock
+  imagePullPolicy: IfNotPresent
+---
+# 集群级配置：版本、入口、网段、证书 SAN
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+clusterName: home-lab
+kubernetesVersion: v1.37.2            # 与 apt 中安装的补丁号保持一致
+controlPlaneEndpoint: k8s-api.example.internal:6443   # 固定入口，扩 HA 时不换证书
+networking:
+  podSubnet: 10.244.0.0/16            # 必须与 CNI 地址池一致
+  serviceSubnet: 10.96.0.0/12         # Service 虚拟网段，勿与内网重叠
+  dnsDomain: cluster.local
+apiServer:
+  certSANs:                           # 证书里额外认可的名字和地址
+    - k8s-api.example.internal
+    - 192.0.2.10
+etcd:
+  local:
+    dataDir: /var/lib/etcd            # etcd 数据目录，必须在本地 SSD
+---
+# kubelet 配置：cgroup 驱动必须与 containerd 一致
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+```
+
+### 5.2 预检与执行初始化
+
+```bash
+# ========== 预检 ==========
+# 先看会拉哪些镜像，避免 init 卡在拉取阶段才发现仓库不通
+sudo kubeadm config images list --config kubeadm.yaml
+# 提前拉齐镜像，init 时不再等待网络
+sudo kubeadm config images pull --config kubeadm.yaml
+
+# ========== 试运行 ==========
+# 只做检查不落盘，能提前暴露端口占用、swap、cgroup 问题
+sudo kubeadm init --config kubeadm.yaml --dry-run
+
+# ========== 正式初始化 ==========
+# 单 master 也保留 controlPlaneEndpoint，为将来扩 HA 留余地
+sudo kubeadm init --config kubeadm.yaml
+```
+
+```mermaid
+flowchart LR
+    A["kubeadm init"] --> B["生成 CA 与组件证书"]
+    B --> C["写控制平面静态 Pod 清单"]
+    C --> D["kubelet 拉起 apiserver 与 etcd"]
+    D --> E["写入 kubeconfig 与引导令牌"]
+    E --> F["节点注册为 control-plane"]
+    F --> G["安装 CNI 后转 Ready"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A client
+    class B,C,D,E,F engine
+    class G image
+```
+
+预期输出的关键部分：
+
+```text
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Then you can join any number of worker nodes by running the following:
+kubeadm join k8s-api.example.internal:6443 --token <token> \
+    --discovery-token-ca-cert-hash sha256:<hash>
+```
+
+### 5.3 初始化产物解析
+
+`kubeadm init` 不是黑盒，它主要做四件事，理解这四件事排障就不会乱。
+
+| 路径 | 内容 | 出问题时的表现 |
+|---|---|---|
+| `/etc/kubernetes/pki` | CA、apiserver、etcd、front-proxy 证书 | 组件互相 TLS 校验失败，报 x509 |
+| `/etc/kubernetes/manifests` | apiserver、etcd、scheduler、controller-manager 静态 Pod 清单 | 对应组件容器不存在 |
+| `/etc/kubernetes/*.conf` | admin、kubelet、controller-manager、scheduler 的 kubeconfig | kubectl 无权限、kubelet 起不来 |
+| `/var/lib/etcd` | etcd 数据目录 | etcd 无法启动或数据丢失 |
+
+- apiserver 起不来，先看静态 Pod 清单和 `/var/log/pods` 里的容器日志。
+- 证书问题，看 `/etc/kubernetes/pki` 和 `kubeadm certs check-expiration`。
+- etcd 问题，看 `/var/lib/etcd` 和 etcd 容器日志。
+
+```bash
+# ========== 确认静态 Pod 已生成 ==========
+# 应有 etcd、kube-apiserver、kube-controller-manager、kube-scheduler 四个清单
+sudo ls -l /etc/kubernetes/manifests/
+# 应有 ca、apiserver、etcd、front-proxy 等证书目录
+sudo ls -l /etc/kubernetes/pki/
+
+# ========== 用 crictl 看控制平面容器 ==========
+# 容器名带节点名后缀，例如 kube-apiserver-k8s-master
+sudo crictl ps | grep -E 'kube-apiserver|etcd|kube-scheduler|kube-controller'
+```
+
+### 5.4 kubeconfig 配置
+
+```bash
+# ========== 复制管理员配置 ==========
+# admin.conf 拥有集群管理员权限，只给可信账号
+mkdir -p "$HOME/.kube"
+# 复制并保留原文件，-i 会在覆盖时提示
+sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config"
+# 改回当前用户所有，避免后续命令必须 sudo
+sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+# 权限收紧，kubeconfig 内含客户端证书
+chmod 600 "$HOME/.kube/config"
+
+# ========== 验证连接 ==========
+# 确认 apiserver 地址与版本
+kubectl cluster-info
+# 确认节点已注册，此时通常为 NotReady
+kubectl get nodes
+# 查看控制平面组件 Pod
+kubectl get pods -n kube-system
+```
+
+此时 master 通常是 `NotReady`，因为还没有 CNI。这是正常的，不要急着重装。`kubectl get nodes` 能返回节点，说明 apiserver、etcd、kubelet 三者的认证链路已经打通，剩下的只是网络插件。
+
+> **运维提示**：`admin.conf` 等同于 root 凭证，不要复制到开发机长期保存。日常运维应创建受限 ServiceAccount 或对接企业 SSO，而不是分发集群管理员配置。
+
+初始化失败后不要直接重跑。先 `kubeadm reset`，按官方流程清理 CNI 配置和 iptables 残留，再确认 `/etc/kubernetes`、`/var/lib/etcd` 的状态。
+
+> **运维红线**：`kubeadm reset` 会删除本机控制平面配置与 etcd 数据。在带业务数据的机器上执行前，必须确认 etcd 数据已备份且不再需要，否则集群状态无法找回。
+
+---
+
+## 六、网络插件部署
+
+### 6.1 CNI 的职责与选型
+
+CNI 插件负责三件事：给 Pod 分配 IP、在节点间打通 Pod 网络、在有策略需求时执行 NetworkPolicy。它不负责 Service 的虚拟 IP，那部分由 kube-proxy 完成。两者分工不清是排障时最常见的混淆点：Service 不通先看 kube-proxy 和 EndpointSlice，Pod IP 不通才看 CNI。
+
+| 方案 | 数据面 | NetworkPolicy | 适合 | 主要代价 |
+|---|---|---|---|---|
+| Flannel | VXLAN 覆盖网络 | 不支持（Canal 组合除外） | 小集群、只要通 | 没有隔离，功能少 |
+| Calico | BGP 路由或 VXLAN | 支持 | 裸金属、需要策略、可接 BGP | BGP 要网络配合，排障跨层 |
+| Cilium | eBPF | 支持，含 L7 | 大规模、可观测、策略复杂 | 内核要求高，概念多 |
+
+### 6.2 安装 Calico
+
+`--pod-network-cidr` 必须和 CNI 的地址池一致。Calico 默认清单写的是 `192.168.0.0/16`，直接 apply 会和配置里的 `10.244.0.0/16` 对不上，表现为节点永远 NotReady、calico-node 反复重启。
+
+```bash
+# ========== 安装 operator ==========
+# tigera-operator 负责根据 Installation 资源创建 calico-system 下的组件
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/tigera-operator.yaml
+
+# ========== 下载并改地址池 ==========
+# 必须与 kubeadm 的 podSubnet 完全一致，否则 Pod 拿不到可路由地址
+curl -fsSLO https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/custom-resources.yaml
+# 把默认地址池替换成安装时定的网段
+sed -i 's|192.168.0.0/16|10.244.0.0/16|' custom-resources.yaml
+# 确认替换结果，输出中应只剩 10.244.0.0/16
+grep -n 'cidr' custom-resources.yaml
+
+# ========== 创建 Installation ==========
+kubectl create -f custom-resources.yaml
+```
+
+预期：
+
+```text
+installation.operator.tigera.io/default created
+apiserver.operator.tigera.io/default created
+goldmane.operator.tigera.io/default created
+whisker.operator.tigera.io/default created
+```
+
+不同 Calico 版本带的 CR 数量不同，关键是 `Installation` 和 `APIServer` 创建成功。
+
+这里用 operator 而不是一次性清单，是因为 `Installation` 是一个声明式对象：节点增减、地址池调整、封装方式切换都通过修改它完成，operator 负责把变化落到 DaemonSet 和配置上。直接 apply 大清单虽然也能装上，但后续变更没有统一入口，排障时很难判断当前配置来自哪一次 apply。
+
+```bash
+# ========== 等待组件就绪 ==========
+# operator 自身先就绪，才能创建后续组件
+kubectl get pods -n tigera-operator
+# calico-node 是 DaemonSet，每个节点一个
 kubectl get pods -n calico-system -o wide
-kubectl logs -n calico-system <calico-node-pod> --tail=50
+
+# ========== 查看整体状态 ==========
+# AVAILABLE 应为 True，DEGRADED 应为 False
+kubectl get tigerastatus
 ```
 
-**要点**
+节点从 `NotReady` 变 `Ready` 通常要等 CNI 初始化完成；CNI 没就绪时还会有 `NetworkUnavailable` 条件和对应的调度限制。所以“节点 NotReady 但 kubelet 是 active”很常见，先看 CNI Pod，不要重装 kubelet。
 
-- `NetworkReady=false` 明确表示容器网络未就绪，跟 kubelet 进程没关系。
-- 常见原因是 CNI 没装或 calico-node 起不来，先把 CNI 自己查清楚，别去重启 kubelet。
-- 判断入口是 Condition 的 Reason 字段，它才指出是哪一层没就绪。
-
-**追问**
-
-- 为什么不能只看 `NotReady` 一个状态？→ 磁盘、网络、运行时都会让它变红，Reason 才是分流点。
-- calico-node 起来了节点还不 Ready？→ 看它是不是每个节点都有一份，缺节点等于那段网络没人管。
-
-### 2.2 `kubeadm init` 卡在拉镜像，最后超时
-
-**现场**
-
-看 init 输出里卡在哪个镜像，再分别试拉。
+`calico-node` 一直 CrashLoop 时，先看日志里是不是找不到网卡名，或 Pod CIDR 与 `podSubnet` 不匹配。
 
 ```bash
-sudo kubeadm config images list --image-repository=registry.aliyuncs.com/google_containers
-grep sandbox_image /etc/containerd/config.toml
-sudo crictl pull registry.aliyuncs.com/google_containers/pause:3.9
+# ========== 定位 calico-node 问题 ==========
+# 日志里常见 autodetect 网卡失败、BIRD 未就绪
+kubectl -n calico-system logs ds/calico-node --tail=100
+# 描述信息里能看到调度状态与最后一次事件
+kubectl -n calico-system describe pod -l k8s-app=calico-node | tail -40
 ```
 
-**要点**
+### 6.3 地址池、封装与 MTU
 
-- 默认从 `registry.k8s.io` 拉，国内基本拉不动，不是网络断了。
-- 即使换了 `--image-repository`，`sandbox_image` 仍指向原地址，pause 镜像照样卡住。
-- 两处都要改：镜像清单归 kubeadm 参数，沙箱镜像归 containerd 配置。
+覆盖网络把 Pod 包在节点 IP 里传，跨网段简单，但每个包多一层封装，MTU 要减掉开销。VXLAN 通常少 50 字节；节点 MTU 1500 时，Pod MTU 应设 1450 左右。
 
-**追问**
+MTU 配错的表现很隐蔽：小请求正常，大响应卡住，TLS 握手偶尔超时。因为握手包小，能通过；证书链和首屏数据大，被分片或丢弃。排查时用 `ping -M do -s 1472` 逐级试探，而不是先怀疑应用。
 
-- 换了 repository 为什么还卡在 pause？→ 沙箱镜像由 containerd 拉，kubeadm 的参数管不到它。
-- 怎么提前确认都拉得下来？→ 用 `config images list` 列出全部，逐个 `crictl pull` 试。
-- init 超时后能直接重跑吗？→ 先 `kubeadm reset` 清掉半成品状态再 init。
-
-### 2.3 `kubeadm join` 报 token 无效
-
-**现场**
-
-在 master 上看 token 列表里的 TTL。
+底层网络（underlay/BGP）让 Pod IP 直接可路由，性能好，但要求机房网络会传路由，IP 规划要提前做。没有网络团队时，Calico 的 VXLAN 模式更省事；要极致性能和 BGP 能力，再考虑 underlay。
 
 ```bash
-kubeadm token list
-kubeadm token create --print-join-command    # 直接生成一条完整的
+# ========== 验证 Pod 网络 ==========
+# 在 master 上直接访问集群 DNS，验证 Service 与 CNI 同时可用
+kubectl run nettest --rm -it --image=busybox:1.37 --restart=Never -- \
+  nslookup kubernetes.default
+
+# ========== 查看地址池 ==========
+kubectl get ippools.crd.projectcalico.org -o wide
+
+# ========== 抓包确认封装 ==========
+# vxlan 模式下应能看到 UDP 4789 的封装流量
+sudo tcpdump -i any -n udp port 4789 -c 5
 ```
 
-**要点**
+---
 
-- bootstrap token 默认 24 小时过期，隔天再 join 必然失败，报错是 `could not find a JWS signature`。
-- 这不是命令抄错，字符一个不差也一样失败。
-- 重新生成时用 `--print-join-command` 拿整条命令，不用手工拼 token 和 hash。
+## 七、工作节点加入与节点管理
 
-**追问**
+### 7.1 join 的认证流程
 
-- 为什么隔天就失效？→ token 带 TTL，不是永久凭据。
-- 换了 token，CA 证书的 hash 要跟着换吗？→ 不用，hash 校验的是 master 的 CA。
-- 过期的 token 能续期吗？→ 不能，只能新建一条，旧的自然失效。
-
-### 2.4 join 成功但节点一直 NotReady
-
-**现场**
-
-看节点上的 `journalctl -u kubelet`，以及 `crictl ps -a` 有没有 pause 容器。
+worker 加入集群靠两样东西：引导令牌（token）和 CA 证书指纹（hash）。token 证明“被允许加入”，hash 证明“连的是真 apiserver”，两者缺一不可。token 默认 24 小时过期，过期后 join 报 `401 Unauthorized`；hash 不匹配则报证书校验失败，防止节点被引导到伪造的控制平面。
 
 ```bash
-sudo journalctl -u kubelet -n 50 --no-pager | grep -iE 'error|failed'
-sudo crictl ps -a | head
+# ========== 在 master 上生成加入命令 ==========
+# 每次都重新生成，避免使用已过期的 token
+sudo kubeadm token create --print-join-command
 ```
 
-**要点**
+输出形状：
 
-- 注册成功不等于就绪：join 只把节点信息写进集群。
-- CNI 没装、pause 镜像拉不下来、cgroup 不一致，都会让节点停在 NotReady。
-- 先看 pause 容器在不在，沙箱起不来，后面的组件都无从谈起。
-
-**追问**
-
-- 怎么区分注册失败和没就绪？→ `get nodes` 里能看到这台机器，就是注册成功了。
-- 一个 pause 容器都没有说明什么？→ 运行时这一层就没起来，先查镜像和 containerd。
-- cgroup 不一致会有什么表现？→ kubelet 和运行时驱动不同，Pod 起不来，日志里直接写。
-
-### 2.5 Pod 跨节点 ping 不通
-
-**现场**
-
-三个 sysctl 值逐个看，再确认重启后是否还在（`/etc/sysctl.d` 有没有写）。
-
-```bash
-sysctl net.ipv4.ip_forward
-sysctl net.bridge.bridge-nf-call-iptables
-kubectl get pods -n calico-system -o wide    # calico-node 是否每个节点都有
+```text
+kubeadm join k8s-api.example.internal:6443 --token <token> --discovery-token-ca-cert-hash sha256:<hash>
 ```
 
-**要点**
-
-- 跨节点不通先查内核参数，不要一上来就重装 CNI。
-- `ip_forward=0` 或 `bridge-nf-call-iptables=0` 时，同节点可能通、跨节点一定不通。
-- `sysctl -w` 只改运行时，必须写进 `/etc/sysctl.d` 才扛得住重启。
-
-**追问**
-
-- 为什么同节点通、跨节点就不通？→ 跨节点要经宿主机转发，转发关了就在那一跳断掉。
-- 重装 Calico 有用吗？→ 参数不对时重装完照样不通。
-- 怎么确认三台都生效？→ 逐台打印这三个值，别只查 master。
-
-### 2.6 Pod 一直 `Pending`，Events 说 `Insufficient cpu`
-
-**现场**
-
-看 `describe node` 的 Allocated resources 段，对比 Requests 与 Allocatable。
+### 7.2 节点扩容
 
 ```bash
-kubectl describe node k8s-node1 | grep -A 10 "Allocated resources"
-kubectl get pods -A -o json | jq '[.items[] | {n:.metadata.name, r:.spec.containers[].resources.requests.cpu}]' | head -30
+# ========== 在 worker 上执行 ==========
+# 命令来自 master 的输出，必须带 sudo
+sudo kubeadm join k8s-api.example.internal:6443 \
+  --token <token> \
+  --discovery-token-ca-cert-hash sha256:<hash>
 ```
 
-**要点**
+```bash
+# ========== 回 master 验证 ==========
+# INTERNAL-IP 应为本机内网地址，ROLES 为 none
+kubectl get nodes -o wide
 
-- 调度器只看 requests 之和，不看 `top` 里的真实占用。
-- 节点上已有 Pod 的 requests 把它占满了，CPU 实际闲着也调度不上。
-- 判断依据是 Allocated resources 里 Requests 与 Allocatable 的差值。
+# ========== 查看节点详细条件 ==========
+# Conditions 里的 Ready、MemoryPressure、DiskPressure 决定可调度性
+kubectl describe node k8s-node1 | sed -n '/Conditions/,/Events/p'
+```
 
-**追问**
+预期：
 
-- 明明很闲为什么调度不上？→ requests 是预留给调度用的账，不是实际用量。
-- 怎么快速找出是谁占的？→ 把所有 Pod 的 `requests.cpu` 列出来求和。
-- 把 requests 调小就能调度上去吗？→ 能，但 requests 同时是 QoS 和驱逐的依据，等于超卖。
+```text
+NAME          STATUS   ROLES           AGE   VERSION   INTERNAL-IP
+k8s-master    Ready    control-plane   12m   v1.37.x   192.0.2.10
+k8s-node1     Ready    <none>          3m    v1.37.x   192.0.2.11
+k8s-node2     Ready    <none>          2m    v1.37.x   192.0.2.12
+```
 
-### 2.7 `kubectl` 报 `x509: certificate has expired`
-
-**现场**
-
-`kubeadm certs check-expiration` 看 RESIDUAL TIME。
+### 7.3 节点摘除
 
 ```bash
+# ========== 第一步：排空节点 ==========
+# 让 Pod 优雅迁移，DaemonSet 和 emptyDir 数据需要显式确认
+kubectl drain k8s-node1 --ignore-daemonsets --delete-emptydir-data
+
+# ========== 第二步：停止节点组件 ==========
+# 在 k8s-node1 上执行，先停 kubelet 避免它继续上报
+sudo systemctl stop kubelet
+# 清理本机的证书、配置与 etcd 数据
+sudo kubeadm reset
+
+# ========== 第三步：删除 API 中的节点记录 ==========
+# 回 master 执行，节点对象与关联的 Lease 一起清理
+kubectl delete node k8s-node1
+```
+
+先 drain 再停 kubelet：drain 让 Pod 优雅迁移；先停 kubelet 再 drain，节点会直接 NotReady，Pod 只能等超时驱逐。`reset` 后还要清理 CNI 配置和 iptables 残留，否则重新加入时网络可能错乱。
+
+> **运维红线**：`kubeadm reset` 会删除本机的证书、kubeconfig 与 etcd 数据，且不可撤销。仅在确认该节点不再提供服务、数据已迁移或备份后执行。
+
+> **注意**：`--delete-emptydir-data` 会删掉 emptyDir 里的临时数据。对有本地缓存或临时文件的负载，先确认可以丢弃。
+
+摘除控制平面更危险：先从 etcd 移除成员，再停组件、删节点。必须在 quorum 健康时做，且一次只动一台；成员数降到偶数不一定立刻坏，但再挂一台就没有多数派。
+
+### 7.4 标签、污点与可调度性
+
+```bash
+# ========== 打标签 ==========
+# 标签是调度、Service 选择、策略生效的共同基础
+kubectl label node k8s-node1 node-role.kubernetes.io/worker=""
+# 标记磁盘类型，供 nodeSelector 或亲和规则使用
+kubectl label node k8s-node1 disktype=ssd
+
+# ========== 打污点 ==========
+# 污点让节点拒绝没有对应 toleration 的 Pod
+kubectl taint node k8s-node1 dedicated=batch:NoSchedule
+
+# ========== 查看与恢复 ==========
+# LABELS 列表里确认标签已写入
+kubectl get nodes --show-labels
+# 查看当前污点
+kubectl describe node k8s-node1 | grep -A3 Taints
+# 末尾加减号表示移除该污点
+kubectl taint node k8s-node1 dedicated=batch:NoSchedule-
+```
+
+| 操作 | 命令 | 风险 |
+|---|---|---|
+| 排空节点 | `kubectl drain` | 触发驱逐，受 PDB 限制 |
+| 恢复调度 | `kubectl uncordon` | 不会把已迁走的 Pod 迁回 |
+| 停止调度 | `kubectl cordon` | 新 Pod 不再落入 |
+| 重置节点 | `kubeadm reset` | 删除本机配置与 etcd 数据 |
+| 删除节点 | `kubectl delete node` | 只删记录，容器可能残留 |
+
+`uncordon` 只让节点重新可调度，不会把已经迁走的 Pod 迁回来，调度器不做再平衡。长期运行后副本分布会倾斜，需要靠 descheduler 或滚动重启调整。
+
+---
+
+## 八、高可用控制平面
+
+### 8.1 拓扑与 VIP
+
+单 master 的可用性上限就是那台机器。生产至少 3 台控制平面，前面放一个 VIP 或云负载均衡，所有节点的 kubeconfig 和 join 命令都指向这个入口。
+
+```mermaid
+flowchart TB
+    C["kubectl / CI / Ingress"] --> VIP["VIP k8s-api:6443<br/>keepalived + HAProxy"]
+    VIP --> M1["master-1<br/>apiserver / controller / scheduler"]
+    VIP --> M2["master-2<br/>apiserver / controller / scheduler"]
+    VIP --> M3["master-3<br/>apiserver / controller / scheduler"]
+    M1 --- E1["etcd-1"]
+    M2 --- E2["etcd-2"]
+    M3 --- E3["etcd-3"]
+    W1["worker-1<br/>kubelet + containerd"] --> VIP
+    W2["worker-2<br/>kubelet + containerd"] --> VIP
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class C,W1,W2 client
+    class M1,M2,M3 engine
+    class E1,E2,E3 image
+```
+
+VIP 的负载均衡健康检查要看 `/healthz`，不能只检查 TCP 端口。apiserver 进程活着但 etcd 不通时，TCP 仍然能连上，请求却全部失败。
+
+### 8.2 证书分发与其余控制平面加入
+
+```bash
+# ========== 首个控制平面 ==========
+# --upload-certs 把控制平面证书加密上传到临时 Secret
+sudo kubeadm init \
+  --control-plane-endpoint=k8s-api.example.internal:6443 \
+  --apiserver-advertise-address=192.0.2.10 \
+  --upload-certs \
+  --pod-network-cidr=10.244.0.0/16
+
+# ========== 证书密钥过期后重新生成 ==========
+# 默认有效期 2 小时，超时后加入会报证书密钥无效
+sudo kubeadm init phase upload-certs --upload-certs
+```
+
+其余控制平面加入：
+
+```bash
+# ========== 在 master-2 / master-3 上执行 ==========
+# --control-plane 表示加入控制平面，--certificate-key 取回加密证书
+sudo kubeadm join k8s-api.example.internal:6443 \
+  --token <token> \
+  --discovery-token-ca-cert-hash sha256:<hash> \
+  --control-plane \
+  --certificate-key <certificate-key>
+```
+
+HA 的几个硬约束：
+
+- **etcd 必须是奇数个成员**，3 个容忍挂 1 个，5 个容忍挂 2 个。2 个成员没有多数派，写操作直接失败。
+- **stacked etcd 与控制平面同机**，省机器，但控制平面故障会同时影响 etcd。
+- **etcd 对磁盘延迟敏感**，用本地 SSD，不要放网络盘。fsync 延迟高会拖慢整个集群的写操作。
+
+### 8.3 etcd 部署模式
+
+| 部署方式 | 优点 | 缺点 | 适用 |
+|---|---|---|---|
+| stacked etcd | 机器少、部署简单 | 控制平面故障同时影响 etcd | 大多数自建集群 |
+| external etcd | 故障域分离、可独立扩 | 机器多、证书和运维复杂 | 大规模、强合规 |
+
+external etcd 要单独维护一套证书和成员列表，扩容时两边都要改。它的价值在于控制平面节点可以随意重建而不碰数据，代价是运维复杂度上一个台阶。
+
+### 8.4 集群形态的取舍
+
+kubeadm 是上游标准的引导工具，不是集群管理系统。自己搭集群前先确认：谁负责 etcd 备份恢复、证书续期、版本升级、节点安全补丁、控制平面扩容。没有明确的人，选托管集群更省事。
+
+| 方案 | 适合 | 代价 |
+|---|---|---|
+| kubeadm 自建 | 机房或私有云、合规要求、需要控制面细节 | 自己管 etcd、证书、升级、备份、HA |
+| 托管 K8s | 大多数业务团队 | 控制平面费用、云绑定、网络模型受限 |
+| k3s | 边缘、单机、资源紧张 | 默认组件精简，部分特性与上游有差异 |
+| 单机 Compose | 小团队、低流量 | 没有多节点调度和自愈 |
+
+自建的成本不在安装，而在长期维护。控制平面能跑起来只要半天，但证书轮换、etcd 备份演练、版本升级、故障复盘需要持续的投入。把这些工作折算成人天，再与托管费用比较，结论通常比凭感觉判断可靠。
+
+> **运维提示**：无论选哪种形态，etcd 备份与恢复演练都必须落到具体的人和固定的周期上。写在文档里但没人执行，等于没有备份。
+
+---
+
+## 九、证书、备份与升级
+
+### 9.1 证书检查与续期
+
+```bash
+# ========== 检查有效期 ==========
+# 关注 EXPIRES 与 RESIDUAL TIME 两列
 sudo kubeadm certs check-expiration
+```
+
+CA 默认 10 年，apiserver、etcd、kubelet 等叶子证书默认 1 年；`kubeadm upgrade` 会自动续。到期前手工续：
+
+```bash
+# ========== 续期全部证书 ==========
+# 逐类重签，输出会列出每一项的续期结果
 sudo kubeadm certs renew all
+
+# ========== 再次确认 ==========
+# RESIDUAL TIME 应恢复为一年左右
+sudo kubeadm certs check-expiration
+```
+
+| 证书 | 默认有效期 | 续期方式 |
+|---|---|---|
+| 集群 CA | 10 年 | 手工重建，需重新分发 |
+| apiserver 服务端 | 1 年 | `certs renew` 或升级 |
+| etcd 服务端与对等 | 1 年 | `certs renew` |
+| kubelet 客户端 | 1 年 | `certs renew` 后重启 kubelet |
+
+续完必须让静态 Pod 重新加载证书。**这一步会短暂中断 apiserver，放在维护窗口做**：
+
+```bash
+# ========== 让静态 Pod 重建以加载新证书 ==========
+# 先备份清单再移走，kubelet 发现文件消失会停掉对应容器
+sudo mkdir -p /tmp/manifests-backup
+# 移走全部清单，apiserver 与 etcd 会随之停止
+sudo mv /etc/kubernetes/manifests/*.yaml /tmp/manifests-backup/
+# 等待容器完全退出，避免新旧进程争抢端口
+sleep 30
+
+# 确认静态 Pod 已停止再放回
+sudo crictl ps | grep -E 'kube-apiserver|etcd' || true
+# 放回清单，kubelet 用新证书重建
+sudo mv /tmp/manifests-backup/*.yaml /etc/kubernetes/manifests/
+
+# admin.conf 也换了证书，重新拷贝
+sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
+
+# kubelet 的客户端证书也换了，重启让它重新加载
 sudo systemctl restart kubelet
+# 确认节点仍为 Ready，说明新证书链路可用
 kubectl get nodes
 ```
 
-**要点**
+如果只是续期而不重启静态 Pod，进程仍然用旧证书，`check-expiration` 显示已续期但实际连接仍会过期。HA 集群每台控制平面都要做。
 
-- kubeadm 签的客户端证书默认 1 年，到期当天所有命令一起失败。
-- 现象是"昨天还好好的"，所以很容易误判成系统时钟问题。
-- `renew all` 之后重启 kubelet，再用 `get nodes` 验证。
+> **运维红线**：移动静态 Pod 清单期间 apiserver 完全不可用，所有写入中断。必须提前通知、确认无发布任务，并在维护窗口内完成。
 
-**追问**
-
-- 为什么所有 kubectl 命令一起挂？→ 挂的是 admin.conf 里的客户端证书，不是某条命令。
-- 续期后还要动什么？→ 重启 kubelet，然后确认能正常连上 apiserver。
-- 怎么避免下一次？→ 设日历提醒；`kubeadm upgrade` 时也会顺带续期。
-
-### 2.8 重启机器后 swap 又回来了，kubelet 起不来
-
-**现场**
-
-查 fstab 里还有没有未注释的 swap 行。
+### 9.2 etcd 备份与恢复
 
 ```bash
-grep -n swap /etc/fstab
-sudo sed -i '/\sswap\s/s/^/#/' /etc/fstab
-sudo swapoff -a && free -h | grep -i swap
+# ========== 准备工具与目录 ==========
+# etcd-client 提供 etcdctl，版本应与集群 etcd 接近
+sudo apt install -y etcd-client
+# 备份目录放在独立磁盘上更好，至少不要与数据目录同盘
+sudo mkdir -p /var/backups/etcd
+
+# ========== 生成快照 ==========
+# 用 etcd 自己的证书做双向 TLS，端点走本机回环
+BACKUP="/var/backups/etcd/etcd-$(date +%F-%H%M).db"
+sudo etcdctl \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key \
+  snapshot save "$BACKUP"
+
+# ========== 校验快照 ==========
+# 只保存不校验等于没备份
+sudo etcdctl snapshot status "$BACKUP" --write-out=table
 ```
 
-**要点**
+预期能看到 `HASH`、`REVISION`、`TOTAL KEYS`、`TOTAL SIZE` 四列。`apt` 里的 etcd-client 可能比集群 etcd 旧，生产上直接用与 etcd 大版本一致的二进制。
 
-- `swapoff -a` 是运行时操作，重启后 fstab 里的条目会把 swap 重新挂上。
-- 必须在 fstab 里注释掉，才算真的关掉。
-- kubelet 默认拒绝在开 swap 的机器上运行，所以现象是服务起不来。
-
-**追问**
-
-- `free -h` 里 swap 变 0 就够了吗？→ 不够，还要确认 fstab 改过，否则重启就回来。
-- 为什么 kubelet 要求关 swap？→ 默认不支持，开着会破坏它的内存核算。
-- 关掉 swap 有代价吗？→ 少了兜底，内存打满直接 OOM。
-
-### 2.9 防火墙开了，节点之间通信失败
-
-**现场**
-
-按端口表逐项对照，或临时抓包看哪个方向被拒。
+恢复要停掉所有 etcd 成员，用同一版本的 `etcdctl` 或 `etcdutl` 恢复到一个干净目录，再让 etcd 从该目录启动。务必在隔离环境演练一次，不要在生产上第一次试。
 
 ```bash
-sudo ss -tlnp | grep -E '6443|10250|2379|2380'
-# Calico VXLAN 是 UDP 4789，很多防火墙只配了 TCP
-sudo ufw status verbose
+# ========== 恢复快照（演练环境） ==========
+# 恢复到全新目录，不要覆盖正在使用的数据目录
+sudo etcdutl snapshot restore /var/backups/etcd/etcd-2026-10-29-0300.db \
+  --data-dir=/var/lib/etcd-restore
+
+# 恢复后启动 etcd 前，先确认目录属主与权限
+sudo chown -R etcd:etcd /var/lib/etcd-restore
+# 目录内应有 member 与 snap 两个子目录
+sudo ls -l /var/lib/etcd-restore
+
+# ========== 查看快照元数据 ==========
+# 确认哈希、revision 与键数量，判断备份是否完整
+sudo etcdutl snapshot status /var/backups/etcd/etcd-2026-10-29-0300.db --write-out=table
 ```
 
-**要点**
+恢复出来的目录要替换 `/var/lib/etcd` 才会真正生效，这一步必须在所有 etcd 成员停机后统一进行，并保持成员列表与证书一致。单成员恢复后其余成员会因数据版本落后而无法加入，需要按官方流程重建。
 
-- 只放行 6443 不够：kubelet 10250、etcd 2379/2380、VXLAN 4789/UDP、BGP 179 都要通。
-- Pod 网段之间要求整体放行，不能按单个端口配。
-- 全关防火墙能最快恢复，但生产等于放弃了边界。
+> **运维红线**：`etcdctl snapshot restore` 会覆盖目标数据目录。恢复前必须停机并备份现有 `/var/lib/etcd`，否则原始数据与快照同时丢失。
 
-**追问**
+### 9.3 集群升级
 
-- 最容易漏的是哪个？→ 4789/UDP，很多防火墙只配了 TCP。
-- 为什么 Pod 网段要整体放行？→ 跨节点 Pod 直通，源和目的都是 Pod IP。
-- 怎么快速定位方向？→ 两侧同时抓包比对，看包在哪一跳消失。
-
-### 2.10 `drain` 报错说有 DaemonSet 的 Pod
-
-**现场**
-
-`get ds -A` 看哪些是每节点一个的。
+一次只升一个小版本，先读 release notes。控制平面先升，worker 逐台升。
 
 ```bash
+# ========== 控制平面升级 ==========
+# 换成 apt-cache madison kubeadm 查到的实际补丁号
+K8S_PATCH=1.37.2
+# 解锁 kubeadm 才能升级
+sudo apt-mark unhold kubeadm
+# 刷新仓库索引
+sudo apt update
+# 只升 kubeadm，补丁号后缀 -1.1 来自仓库命名
+sudo apt install -y kubeadm=${K8S_PATCH}-1.1
+# 先看升级计划，确认不会跨 minor
+sudo kubeadm upgrade plan
+# 执行升级，会更新证书与静态 Pod 清单
+sudo kubeadm upgrade apply "v${K8S_PATCH}"
+# 升级完重新锁定
+sudo apt-mark hold kubeadm
+
+# ========== worker 逐台升级 ==========
+# 先排空，升级 kubelet 与 kubectl，再恢复调度
 kubectl drain k8s-node1 --ignore-daemonsets --delete-emptydir-data
-kubectl uncordon k8s-node1        # 维护完必须恢复，否则节点永远空着
+# 解锁两个包
+sudo apt-mark unhold kubelet kubectl
+# 升到与控制平面一致的补丁号
+sudo apt install -y kubelet=${K8S_PATCH}-1.1 kubectl=${K8S_PATCH}-1.1
+# systemd 单元可能随包更新，需要重新加载
+sudo systemctl daemon-reload
+# 重启 kubelet 使新版本生效
+sudo systemctl restart kubelet
+# 重新锁定
+sudo apt-mark hold kubelet kubectl
+# 恢复调度，允许新 Pod 落入
+kubectl uncordon k8s-node1
 ```
 
-**要点**
+控制平面节点也要升 kubelet；顺序是 kubeadm → `upgrade apply` → drain → kubelet/kubectl → uncordon。不要先升 worker 的 kubelet，再升 apiserver，版本倒挂会让节点注册失败。
 
-- DaemonSet 的 Pod 删了立刻重建，手工删没有意义。
-- `drain` 本来就有 `--ignore-daemonsets` 开关，不需要先删。
-- 维护完必须 `uncordon`，否则节点一直空着。
-
-**追问**
-
-- 为什么要加 `--delete-emptydir-data`？→ 节点上有用 emptyDir 的 Pod 时 drain 会拒绝，加它表示接受数据丢失。
-- 忘了 uncordon 会怎样？→ 节点永久不可调度，白少一台算力。
-- 驱逐会中断服务吗？→ 单副本会，执行前先看副本分布和 PDB。
-
-### 2.11 `metrics-server` 装上了，`kubectl top` 还是报错
-
-**现场**
-
-看 metrics-server 日志里的 `x509` 或 `dial tcp` 错误。
-
-```bash
-kubectl logs -n kube-system deploy/metrics-server --tail=30
-# 给启动参数加 --kubelet-insecure-tls
-kubectl get apiservice v1beta1.metrics.k8s.io
-```
-
-**要点**
-
-- 报错不是版本不兼容，是漏了 `--kubelet-insecure-tls`。
-- kubeadm 集群的 kubelet 用自签证书，metrics-server 默认校验会失败，采集不到数据。
-- 补上参数后，`v1beta1.metrics.k8s.io` 才会变成可用。
-
-**追问**
-
-- 为什么要跳过校验？→ 它走 kubelet 的 HTTPS，自签证书不在信任链里。
-- 这样安全吗？→ 内网可接受，等于放弃对 kubelet 证书的校验。
-- 加了参数还是没数据？→ 看 apiservice 状态和 Pod 是否 Ready。
-
-### 2.12 etcd 备份文件生成了，但不知道能不能用
-
-**现场**
-
-`snapshot status` 看 revision 和 key 数量是否合理。
-
-```bash
-sudo etcdctl --write-out=table snapshot status /opt/backup/etcd/etcd-2026-10-20.db
-# TOTAL KEYS 为 0 或文件只有几 KB，就是空备份
-```
-
-**要点**
-
-- 命令没报错不等于备份可用，不验证的备份等于没有备份。
-- 快照可能不完整，或者根本没包含数据。
-- `TOTAL KEYS` 为 0 或文件只有几 KB，就是空备份。
-
-**追问**
-
-- 怎么判断一份备份可用？→ `snapshot status` 里 REVISION 和 TOTAL KEYS 都要在合理量级。
-- 恢复的代价是什么？→ 整个集群回滚到备份时刻，之后创建的对象全部消失。
-- 备份文件能随便放吗？→ 里面有全部 Secret，必须 600 并且放在另一台机器上。
+`drain` 会驱逐 Pod，先确认副本数和 PDB 能承受；`--delete-emptydir-data` 会删掉 emptyDir 里的临时数据。
 
 ---
 
-## 三、核心知识：从零开始要建立的东西
+## 十、集群验收
 
-### 3.1 集群由哪些独立组件组成
-
-K8s 不是一个软件，而是一组各自独立、靠证书互信连接的进程。
-
-| 位置 | 组件 | 形态 |
-|---|---|---|
-| 控制平面 | etcd | 静态 Pod |
-| 控制平面 | kube-apiserver | 静态 Pod |
-| 控制平面 | kube-controller-manager | 静态 Pod |
-| 控制平面 | kube-scheduler | 静态 Pod |
-| 每个节点 | kubelet | systemd 服务 |
-| 每个节点 | kube-proxy | DaemonSet Pod |
-| 每个节点 | containerd | systemd 服务 |
-| 集群级 | CNI 插件 | DaemonSet + CRD |
-
-**静态 Pod** 的 YAML 放在 `/etc/kubernetes/manifests/`，kubelet 直接监视并运行，不走调度器。所以 `kubectl delete` 控制平面 Pod 后它会被 kubelet 重新拉起。
-
-### 3.2 控制平面的奇数原则
-
-etcd 用 Raft 协议，写操作需要多数派确认，多数派 = N/2 + 1。
-
-| master 数 | 可容忍故障 | 结论 |
-|---|---|---|
-| 1 | 0 | 学习/测试 |
-| 2 | 0 | 最差选择，还不如 1 台 |
-| 3 | 1 | 生产最小规模 |
-| 5 | 2 | 大规模 |
-
-**为什么 2 台最差**：挂一台就只剩 1 台，1 < 2（多数派），集群直接失去写能力。而单台至少还知道自己挂了。
-
-> **面试**：常问「控制平面为什么必须是奇数台，2 台为什么比 1 台还差？」答：Raft 写操作要多数派，2 台挂 1 台就凑不够 2，反而失去写能力。
-
-### 3.3 端口与防火墙的放行清单
-
-| 组件 | 端口 | 协议 | 谁访问 |
-|---|---|---|---|
-| kube-apiserver | 6443 | TCP | 所有客户端与节点 |
-| etcd | 2379 / 2380 | TCP | apiserver / 其他 etcd |
-| kubelet | 10250 | TCP | apiserver（exec、logs） |
-| kube-scheduler | 10259 | TCP | apiserver（HA 时） |
-| controller-manager | 10257 | TCP | apiserver（HA 时） |
-| NodePort | 30000-32767 | TCP | 外部用户 |
-| VXLAN | 4789 | **UDP** | 节点之间 |
-| BGP | 179 | TCP | 节点之间 |
-
-**边界**：Pod 网段之间要求全通。用 Calico BGP 模式时还要求节点二层可达；跨网段就用 VXLAN 封装。
-
-### 3.4 kubeadm init 的六个动作
-
-| 步骤 | 做了什么 | 失败时的表现 |
-|---|---|---|
-| preflight | 检查 swap、端口、内核参数、运行时 | 明确报哪项不满足 |
-| 生成证书 | 写入 `/etc/kubernetes/pki/` | 证书已存在会询问是否覆盖 |
-| 生成 kubeconfig | admin.conf、kubelet.conf 等 | 权限错会导致 kubectl 不可用 |
-| 起静态 Pod | 写 manifests 目录，kubelet 接管 | apiserver 起不来则 init 超时 |
-| 装插件 | CoreDNS、kube-proxy | CoreDNS 会 Pending 等 CNI |
-| 输出 join 命令 | token + 证书 hash | token 24 小时过期 |
-
-**证书是命门**：CA 有效期 10 年，其余证书 1 年，`kubeadm upgrade` 会自动续。生产必须备份 `/etc/kubernetes/pki/`，并且设日历提醒。
-
-> **面试**：常问「集群用了一年后突然所有 kubectl 命令都失败，是什么原因？」答：kubeadm 签的客户端证书默认 1 年到期，renew 后重启 kubelet。
-
-### 3.5 token 与证书哈希的双重作用
+### 10.1 基础连通性
 
 ```bash
-kubeadm join 192.168.1.10:6443 \
-  --token abcdef.0123456789abcdef \
-  --discovery-token-ca-cert-hash sha256:xxxx
+# ========== 系统组件 ==========
+# 所有 kube-system Pod 应为 Running
+kubectl get pods -A -o wide
+
+# ========== DNS ==========
+# 预期返回 kubernetes.default.svc.cluster.local 与 10.96.0.1
+kubectl run smoke --rm -it --image=busybox:1.37 --restart=Never -- \
+  nslookup kubernetes.default
+
+# ========== 真实负载 ==========
+# 用固定版本镜像，避免 latest 带来的不确定性
+kubectl create deployment web --image=nginx:1.30-alpine --replicas=2
+# 暴露为 NodePort，便于从集群外验证
+kubectl expose deployment web --port=80 --type=NodePort
+# 记录分配的 NodePort 与服务地址
+kubectl get svc web
 ```
 
-| 参数 | 作用 | 不做会怎样 |
+取 NodePort 并访问：
+
+```bash
+# ========== 从节点 IP 访问 ==========
+# NodePort 在任意节点上都可访问，不要求 Pod 在本节点
+NODE_PORT=$(kubectl get svc web -o jsonpath='{.spec.ports[0].nodePort}')
+# 用 -I 只取响应头，确认状态码与 Server 字段
+curl -I "http://192.0.2.11:${NODE_PORT}"
+```
+
+预期 `HTTP/1.1 200 OK` 和 `Server: nginx/1.30.x`。
+
+### 10.2 故障演练
+
+真正的验收是重启一台 worker：
+
+```bash
+# ========== 在 k8s-node1 上重启 ==========
+sudo reboot
+```
+
+回 master 观察：
+
+```bash
+# ========== 观察节点与 Pod 状态变化 ==========
+# -w 持续输出，Ctrl+C 退出
+kubectl get nodes -w
+# 同时观察 Pod 的节点归属变化
+kubectl get pods -o wide -w
+```
+
+预期 node1 先 `NotReady`，约 5 分钟后它上面的 Pod 被驱逐并调度到 node2。这个 5 分钟来自 toleration 的默认 `tolerationSeconds: 300`，不是“K8s 反应慢”。节点回来后变 `Ready`，但已经迁走的 Pod 不会自动迁回。
+
+这 5 分钟是刻意留出的容忍窗口：节点可能只是短暂重启，过早驱逐会让工作负载无谓迁移。窗口内 kubelet 恢复上报，Pod 就原地保留；超过窗口仍失联，node controller 才把 Pod 标记为 `Terminating` 并删除，让 ReplicaSet 在别处补副本。因此观察驱逐时不要用 `kubectl delete pod` 干预，手动删除反而会跳过快照与优雅退出的保护。
+
+节点重启期间，Service 的 EndpointSlice 会先把 NotReady 节点上的端点摘掉，流量不再打过去。这一步依赖 kubelet 上报的 Ready 条件和 EndpointSlice 控制器，与 Pod 驱逐是两条独立链路，所以会出现“Pod 还在、流量已经不通”的过渡状态，属于正常现象。
+
+| 验收项 | 命令 | 通过标准 |
 |---|---|---|
-| `--token` | 证明"我有权加入" | 任何人能把节点加进来 |
-| `--discovery-token-ca-cert-hash` | 校验 master 的证书 | 可能被引导加入一个假集群（中间人） |
+| 节点状态 | `kubectl get nodes` | 全部 Ready |
+| 系统组件 | `kubectl get pods -A` | 全部 Running 且重启次数稳定 |
+| 集群 DNS | `nslookup kubernetes.default` | 返回 ClusterIP |
+| Service 访问 | `curl` NodePort | 200 且响应头正确 |
+| 节点自愈 | 重启 worker 后观察 | Pod 在另一节点重建 |
+| 证书 | `kubeadm certs check-expiration` | 剩余时间大于 90 天 |
+| etcd 备份 | `etcdctl snapshot status` | 四列数据完整 |
 
-两个参数缺一不可。只给 token 时 kubeadm 会尝试用不安全的方式拉证书，很多版本直接拒绝。
+验收完成后清理测试资源：
 
-### 3.6 CNI 要解决的四个问题
+```bash
+# ========== 清理演练资源 ==========
+# 先删工作负载，再删暴露的 Service
+kubectl delete deployment web
+# 删除后 NodePort 释放，可复用
+kubectl delete service web
+```
 
-| 问题 | 具体要求 |
-|---|---|
-| Pod 有唯一 IP | 每个 Pod 一个集群内可路由地址 |
-| Pod 到 Pod 直通 | 跨节点不需要 NAT |
-| 节点到 Pod 直通 | kubelet、健康检查能直连 |
-| 配合 Service 转发 | 提供可被 kube-proxy 使用的网卡与路由 |
+---
 
-| 插件 | 数据面 | NetworkPolicy | 适用 |
-|---|---|---|---|
-| Calico | BGP 或 VXLAN | 支持 | 生产默认 |
-| Flannel | VXLAN | 不支持 | 入门、简单环境 |
-| Cilium | eBPF | 支持（最强） | 追求性能与可观测 |
+## 十一、常见排障
 
-**选型结论**：默认 Calico。它同时提供网络和策略，不会在"以后要做隔离"时被迫换插件。
+### 11.1 故障对照表
 
-> **面试**：常问「Calico、Flannel、Cilium 怎么选？」答：Flannel 只做连通、不支持 NetworkPolicy，Calico 网络加策略最稳，Cilium 用 eBPF 换性能和可观测。
-
-### 3.7 Pod 网段与 Service 网段的划分
-
-| 网段 | 用途 | 谁分配 | 注意 |
-|---|---|---|---|
-| `--pod-network-cidr` | Pod IP | CNI | **必须与 CNI 配置一致** |
-| `--service-cidr` | ClusterIP | apiserver | 不能与 Pod 网段重叠 |
-| 节点网段 | 宿主机 IP | 基础设施 | 三者都不能重叠 |
-
-**最常见的错误**：init 时写 `10.244.0.0/16`，Calico 的 `custom-resources.yaml` 里还是默认 `192.168.0.0/16`。结果节点能 Ready，但 Pod 拿不到 IP 或跨节点不通。
-
-### 3.8 kubeconfig、认证与授权
-
-| 环节 | 机制 | 回答的问题 |
+| 现象 | 最可能原因 | 处理 |
 |---|---|---|
-| 认证 | 客户端证书 / token / ServiceAccount | 你是谁 |
-| 授权 | RBAC | 你能做什么 |
-| 准入 | Admission Controller | 这个请求要不要改写/拒绝 |
+| `kubeadm init` 卡在拉镜像 | 访问 registry.k8s.io 失败 | 先 `kubeadm config images pull` 验证；配 registry 镜像，不要改错仓库 |
+| 端口 6443 被占用 | 之前 init 失败留下的静态 Pod | `kubeadm reset` 后清理 `/etc/kubernetes`、`/var/lib/etcd` |
+| worker join 报 x509 | token 过期、CA hash 错、时钟偏 | 重新生成 join 命令，校时 |
+| 节点一直 NotReady | kubelet、containerd、CNI、cgroup 任一异常 | `systemctl status kubelet`、`journalctl -u kubelet`、`crictl ps -a` |
+| cgroup driver 不一致 | containerd 仍是 cgroupfs | 改 `SystemdCgroup = true`，重启 containerd 与 kubelet |
+| CoreDNS 一直 Pending | CNI 未就绪，或控制平面污点 | 先修 CNI；确认 CoreDNS 有 toleration |
+| 连 apiserver 报 refused | apiserver 静态 Pod 挂了 | `crictl ps -a` 定位，`crictl logs` 看证书与 etcd 报错 |
+| Pod 互通但 DNS 不通 | CoreDNS、kube-proxy 或 NetworkPolicy | 查 CoreDNS 日志、Service 端点、53 端口策略 |
+| `DiskPressure` 与驱逐 | 镜像和日志占满磁盘 | 清无用镜像与日志，注意别删 pause 镜像 |
+| etcd 报空间超限 | 配额满或长期未 defrag | 按官方流程 defrag，不要直接删成员 |
+| kubectl 报 x509 过期 | 叶子证书一年到期 | `certs renew all` 并重启静态 Pod |
+| 升级后 kubelet 起不来 | 跨了小版本、字段废弃 | 一次只升一个 minor，核对配置与 release notes |
 
-`admin.conf` 里的证书 CN 是 `kubernetes-admin`，组是 `system:masters`，RBAC 里这个组绑定 cluster-admin。**拿到它就等于拿到集群 root**。
-
-**正确做法**：给每个人签独立证书或建 ServiceAccount，按最小权限绑 Role。永远不要共享 admin.conf，也不要把它塞进 Pod。
-
-### 3.9 节点维护的三段动作
-
-| 动作 | 效果 | 恢复 |
-|---|---|---|
-| `cordon` | 标记不可调度，已有 Pod 不动 | `uncordon` |
-| `drain` | 驱逐可驱逐的 Pod，先在别处重建 | `uncordon` |
-| `delete node` | 从集群花名册移除 | 重新 join |
-
-标准序列：cordon → drain → 维护 → uncordon。下线则再补 `delete node` 和节点上的 `kubeadm reset`。
-
-**注意**：`drain` 会中断单副本服务。执行前先 `get pods -o wide` 看清这台机器上有什么，以及 `PodDisruptionBudget` 是否会阻止驱逐。
-
-### 3.10 高可用拓扑与负载均衡入口
+### 11.2 排查顺序
 
 ```mermaid
 flowchart TD
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef data fill:#FEF3C7,stroke:#D97706,color:#78350F
-
-    LB["VIP 192.168.1.100 keepalived"]:::client
-    M1["master1：apiserver 与 etcd"]:::service
-    M2["master2：apiserver 与 etcd"]:::service
-    M3["master3：apiserver 与 etcd"]:::service
-    W["worker 节点"]:::data
-
-    LB --> M1
-    LB --> M2
-    LB --> M3
-    M1 --- M2
-    M2 --- M3
-    W --> LB
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
+    A["现象: 节点或 Pod 异常"] --> B["集群外执行 kubectl get nodes"]
+    B --> C{"API 是否可达"}
+    C -->|"不可达"| D["登录 master 查 kubelet 与静态 Pod"]
+    C -->|"可达"| E{"节点是否 Ready"}
+    E -->|"NotReady"| F["查 kubelet / containerd / CNI"]
+    E -->|"Ready"| G["查 Pod 事件与调度条件"]
+    D --> H["crictl logs 看组件退出原因"]
+    F --> H
+    G --> I["describe pod 看 Events 与探针"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A,B client
+    class C,E,G engine
+    class D,F,H,I image
 ```
 
-三个要素：多 master（3 台起）、etcd 组成 Raft 集群、一个固定入口（VIP 或云 LB）。客户端只连 LB，master 换哪台对外地址都不变。
-
-**代价**：多两台机器、多一套 keepalived 配置、故障排查多一层。小团队自建时，用托管集群通常更划算。
-
-### 3.11 版本偏差与升级顺序
-
-| 规则 | 说明 |
-|---|---|
-| 只能逐个小版本升 | 1.27 → 1.28 → 1.29，不能跳 |
-| 补丁版本可任意 | 1.28.1 → 1.28.5 直接升 |
-| 先控制平面后 worker | 反了会出现 kubelet 比 apiserver 新 |
-| 一次一个 worker | cordon + drain + 升级 + uncordon |
-| **kubelet 不得新于 apiserver** | 且版本差最多 3 个小版本，否则行为不保证 |
-| **kubectl 与 apiserver 相差不超过 1 个小版本** | 本地 kubectl 落后一两个版本通常仍可用 |
-
-**升级前必做**：`kubeadm upgrade plan` 看能不能升，`apt-cache madison` 确认源里有目标版本。阿里云旧源更新滞后，升更高版本要切到 `pkgs.k8s.io`，版本后缀格式也会从 `-00` 变成 `-1.1`。
-
-> **面试**：常问「kubelet 能不能比 apiserver 新？」答：不能，kubelet 不得新于 apiserver，版本差最多 3 个小版本，升级顺序是先控制平面后 worker。
-
-### 3.12 etcd 备份与恢复的边界
-
-| 项目 | 说明 |
-|---|---|
-| 备份内容 | 所有 K8s 对象，含 Secret 明文（加密前） |
-| 频率 | 每天至少一次 + 每次变更前 |
-| 存放 | 另一台机器，权限 600 |
-| 恢复影响 | **回滚整个集群到备份时刻**，之后创建的 object 全部消失 |
-
-恢复不是日常操作，是灾难手段。恢复后所有组件的证书、token、ServiceAccount 都要重新对齐，通常还要重启 apiserver 与 kubelet。
-
-### 3.13 节点规模与集群上限
-
-| 指标 | 官方参考量级 |
-|---|---|
-| 节点数 | 5000 |
-| Pod 总数 | 150000 |
-| 单节点 Pod | 默认上限 110（kubelet `--max-pods`），实际推荐远低于此 |
-
-超过这些量级要考虑多集群。节点多不等于稳：每个 kubelet 都和 apiserver 保持长连接，控制平面压力随节点数线性上升。
-
-**边界**：这些数字是"调优后的上限"，不是"推荐值"。`--max-pods` 的 110 还要扣除节点上系统组件占用的名额，业务 Pod 能用的通常只有几十个；实际集群到几百节点就要开始关注 apiserver 的 QPS、etcd 的磁盘 IO、CNI 的收敛时间。
-
-### 3.14 故障排查的分层顺序
+1. 从集群外 `kubectl get nodes`，API 都不通就直接上 master。
+2. `systemctl status kubelet` 加 `journalctl -u kubelet -n 100`。
+3. `crictl ps -a` 看 apiserver、etcd、controller-manager 是否在跑，`crictl logs` 看退出原因。
+4. `kubectl describe node` 看 Conditions 和 Events。
+5. `kubectl get pods -A -o wide`，先确认 CNI 和 CoreDNS。
+6. etcd 健康检查：
 
 ```bash
-kubectl logs <pod> --previous                        # 1 应用层
-kubectl describe pod <pod>                           # 2 调度与事件
-sudo journalctl -u kubelet --since "10 min ago"      # 3 节点层
-sudo crictl ps -a && sudo crictl logs <id>           # 4 运行时层
-sudo crictl ps | grep -E 'apiserver|etcd'            # 5 控制平面
+# ========== 在集群内执行 etcd 健康检查 ==========
+# 预期输出 healthy: successfully committed proposal
+kubectl -n kube-system exec etcd-k8s-master -- etcdctl \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key \
+  endpoint health
 ```
 
-**为什么按这个顺序**：上层的问题最常见、查起来最便宜。直接从 apiserver 查起，90% 的时间是浪费。
+7. 最后查防火墙、安全组、时间同步。
 
-### 3.15 常用验证命令的分类
-
-| 想确认的事 | 命令 |
-|---|---|
-| 节点状态 | `kubectl get nodes -o wide` |
-| 组件健康 | `kubectl get pods -A` |
-| 集群信息 | `kubectl cluster-info` |
-| 节点详情与污点 | `kubectl describe node` |
-| 最近事件 | `kubectl get events -A --sort-by=.lastTimestamp` |
-| 证书有效期 | `kubeadm certs check-expiration` |
-| 运行时状态 | `crictl info`、`crictl ps -a` |
-| 备份状态 | `etcdctl snapshot status` |
-
----
-
-## 四、冷门知识汇总
-
-| 知识点 | 为什么冷门 | 用到时的关键词 |
-|---|---|---|
-| etcd 快照恢复 | 一年可能都用不上一次，步骤繁琐易错 | `snapshot restore`、改 etcd.yaml 的 `--data-dir` |
-| kube-proxy IPVS 模式 | 默认 iptables 够用，大集群才切 | `mode: ipvs`、`ip_vs_rr` 预加载 |
-| 静态 Pod 目录 | 组件自愈靠它，平时不直接碰 | `/etc/kubernetes/manifests/` |
-| `kubeadm reset` 的残留 | 重置后还有 CNI 配置和 iptables 规则要清 | `/etc/cni/net.d`、`iptables -F` |
-| 证书手动续期 | 一年一次，容易忘 | `kubeadm certs renew all`、`check-expiration` |
-| kubelet 配置位置 | 排查参数时才知道在哪 | `/var/lib/kubelet/config.yaml`、`kubeadm-flags.env` |
-| cgroup 版本判断 | v1/v2 差异影响资源限制行为 | `stat -fc %T /sys/fs/cgroup` |
-| `--control-plane-endpoint` | 单 master 用不上，HA 才涉及 | `--upload-certs`、`--certificate-key` |
-| Node 的 Allocatable | 节点真实可分配量小于容量 | `kube-reserved`、`system-reserved` |
-| 集群级组件状态查询 | `componentstatuses` 已部分废弃 | 改用 `get pods -n kube-system` |
+排障顺序的价值在于每一步都能排除一整类原因。跳过前面几步直接重装，通常会把配置问题和环境问题混在一起，越修越乱。

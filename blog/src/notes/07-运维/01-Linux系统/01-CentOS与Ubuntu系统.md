@@ -1,614 +1,1095 @@
 # CentOS 与 Ubuntu 系统
 
-## 一、工程案例：把一台裸机变成能交付的服务器
+> 发行版的选择不是选命令，而是选一整套默认值：包管理、防火墙、强制访问控制、支持周期。这套默认值定下来，装机文档、脚本和排障手册才有统一写法。
 
-**场景**：新买一台 Ubuntu 24.04（4 核 8G，40G 系统盘 + 100G 数据盘），当前用 **root + 密码**登录。目标是把它变成一台**能交给项目用**的机器：有专用账号、只能密钥登录、数据盘挂好、防火墙收口，且这套流程能复制到后面 19 台。
+---
 
-**为什么必须做**：开 root 密码登录的公网机器，几分钟内就会被自动化扫描盯上，开始尝试常见密码。下面 8 步是**最小可交付集**，做完这一节，机器就可以上业务了。每步为什么要这么做、复制到 20 台时注意什么，都写在这一节里。
+## 一、CentOS 与 Ubuntu 是什么
 
-**动手前确认**：云控制台的 VNC / 救援登录可用（万一 SSH 配错，这是唯一的后门）。
+### 1.1 核心概念
 
-### 1.1 主线（按顺序执行，不要跳步）
+Linux 严格说只是内核，负责进程调度、内存管理、文件系统和网络协议栈。日常操作的 `ls`、`apt`、`systemctl`、`nginx` 全部来自发行版。发行版等于内核加包管理、初始化系统、基础工具集、安全策略和支持周期。
+
+从运维视角看，一台服务器能不能交付，只看四件事有没有定死：
+
+- **谁能登录**：账号、密钥、sudo 授权、sshd 策略
+- **数据在哪块盘**：分区、文件系统、挂载点、备份范围
+- **时间准不准**：时区、NTP、应用自身的时区
+- **哪些端口对外**：监听地址、主机防火墙、云安全组
+
+CentOS 与 Ubuntu 是两大流派的代表。Ubuntu 属于 Debian 系，CentOS 及其替代品 Rocky、Alma 属于 RHEL 系。它们在上述四件事上给出的默认答案不同，同一份操作文档不能无差别套用。
+
+| 构成层 | 具体内容 | 出问题时的表现 |
+|---|---|---|
+| 内核 | 进程、内存、文件系统、网络 | 特性不支持、驱动缺失 |
+| 包管理 | apt/dpkg 或 dnf/rpm | 装不上、依赖冲突 |
+| 初始化系统 | systemd、journald | 服务不自启、日志丢失 |
+| 安全策略 | ufw/firewalld、SELinux/AppArmor | 权限正确却访问被拒 |
+
+发行版不解决的事也要说清：它不保证应用能跑，依赖、JDK、内核参数属于另一层；手工敲命令装机不保证可复现，那属于 cloud-init、Ansible 或镜像的职责；装完系统也不等于加固完成，账号、审计、补丁策略是持续动作。
+
+### 1.2 与相邻技术的关系
+
+分叉只发生在“包和策略”这一层。内核、systemd、sshd、Nginx、MySQL 的行为，两个门派没有本质区别，网上大部分 Linux 教程可以通用。真正需要分头查的，是包名、配置文件路径、防火墙工具和强制访问控制。
+
+CentOS 已经不是当年的 CentOS。CentOS Linux 8 在 2021 年底停止维护，CentOS Linux 7 在 2024-06-30 到期。现在的 CentOS Stream 是 RHEL 的上游开发流，用来给 RHEL 试错，版本节奏比 RHEL 快。要“免费的 RHEL”，应选 Rocky 或 Alma。
+
+```mermaid
+flowchart TD
+    K["Linux 内核<br/>进程 / 内存 / 文件系统 / 网络"] --> D["Debian 系"]
+    K --> R["RHEL 系"]
+    D --> U["Ubuntu LTS"]
+    D --> DB["Debian"]
+    R --> RH["RHEL 付费订阅"]
+    R --> RB["Rocky / Alma<br/>RHEL 重建版"]
+    R --> CS["CentOS Stream<br/>RHEL 上游开发流"]
+    U --> S["systemd · journalctl · sshd<br/>两派完全一致"]
+    DB --> S
+    RH --> S
+    RB --> S
+    CS --> S
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class K client
+    class D,R engine
+    class U,DB,RH,RB,CS,S image
+```
+
+与容器和配置管理的关系同样要建立：容器基础镜像通常用 Alpine 或 debian-slim，不用完整发行版；cloud-init 和 Ansible 负责把本文的初始化步骤变成可重复执行的动作；跨发行版部署应用时，glibc 版本差异要靠统一基础镜像或容器消除。
+
+| 对比维度 | Debian 系 | RHEL 系 |
+|---|---|---|
+| 代表系统 | Ubuntu LTS、Debian | RHEL、Rocky、Alma、CentOS Stream |
+| 包格式与工具 | `.deb` / `apt`、`dpkg` | `.rpm` / `dnf`、`rpm` |
+| 装包前动作 | `apt update` 刷新索引 | `dnf` 自动处理元数据 |
+| 默认防火墙 | `ufw`，默认未启用 | `firewalld`，默认启用 |
+| 强制访问控制 | AppArmor，按路径配 profile | SELinux，默认 enforcing |
+
+> **注意**：`yum` 和 `dnf` 不是两套东西。RHEL 8 以后 `yum` 是 `dnf` 的软链接，CentOS 7 上才是真的 `yum`。写新文档一律写 `dnf`。
+
+### 1.3 架构组成
+
+发行版从下到上可以分成六层，排障时按层定位，比盲试配置快得多。
+
+```mermaid
+flowchart TD
+    APP["应用层<br/>Nginx · MySQL · 自建服务"] --> PKG["包管理层<br/>apt / dnf + 软件源"]
+    PKG --> SVC["服务与初始化层<br/>systemd · journald · cron"]
+    SVC --> SEC["安全策略层<br/>ufw / firewalld · SELinux / AppArmor"]
+    SEC --> KER["内核层<br/>进程 · 内存 · 文件系统 · 网络"]
+    KER --> HW["硬件与虚拟化层<br/>CPU · 磁盘 · 网卡 · 云主机"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class APP client
+    class PKG,SVC engine
+    class SEC,KER,HW image
+```
+
+| 层级 | 职责 | 常用入口 |
+|---|---|---|
+| 应用层 | 业务进程与配置 | `systemctl status`、应用日志 |
+| 包管理层 | 安装、升级、依赖求解 | `apt`、`dnf`、`rpm`、`dpkg` |
+| 服务层 | 单元管理、日志、定时任务 | `systemctl`、`journalctl`、`crontab` |
+| 安全层 | 访问控制与包过滤 | `ufw`、`firewall-cmd`、`getenforce` |
+| 内核层 | 资源调度与设备驱动 | `uname`、`dmesg`、`sysctl` |
+| 硬件层 | 计算、存储、网络 | `lscpu`、`lsblk`、`ip` |
+
+这六层的顺序就是排障顺序。应用报错先看应用日志，日志说端口绑定失败再看监听和防火墙，防火墙放行后仍不通再查安全策略和内核参数。跳过中间层直接改内核参数，通常只是把问题挪到更难发现的位置。
+
+---
+
+## 二、安装与初始化配置
+
+> **版本现状（2026）**：RHEL 10、Rocky 10、Alma 10 已进入主线，要求 x86-64-v3 指令集（含 AVX2）；Ubuntu 侧以 LTS 版本为准，24.04 及后续 LTS 均可用于生产。具体小版本以官方镜像列表为准。
+
+### 2.1 版本选择与硬件确认
+
+选型先看约束，不看个人习惯。支持周期决定两年后是打补丁还是整体迁移，指令集决定老硬件能不能装上，安全合规决定要不要商业订阅。
+
+| 场景 | 选择 | 理由 |
+|---|---|---|
+| 新建环境、团队熟悉 apt | Ubuntu LTS | 软件新、社区资料多 |
+| 要求 RHEL 兼容 | Rocky / Alma 9 或 10 | 免费且二进制兼容 |
+| 需要厂商支持合同 | RHEL 订阅 | 有 SLA 与认证 |
+| 老硬件不支持 v3 | 9 系列 | 10 系列装不上 |
+| 存量 CentOS 7 | 先维持，制定迁移 | 已停止维护 |
+
+装前确认 CPU 是否支持目标版本要求的指令集，避免装到一半失败：
 
 ```bash
-# ① 建运维账号（不要用 root 干活）
-useradd -m -s /bin/bash deploy      # -m 必加：没有家目录，密钥登录会失败
-passwd deploy                       # 只用于 sudo 提权；第 ④ 步会关掉 SSH 密码登录
-usermod -aG sudo deploy             # ⚠️ 必须 -aG；只写 -G sudo 会覆盖掉已有附加组
-id deploy                           # 期望看到 groups 里有 sudo
+# ========== 硬件与固件确认 ==========
+# 查看 CPU 型号、核心数和指令集标志
+lscpu
 
-# ② 本地生成密钥并传到服务器（在你自己电脑上执行，不是服务器）
+# 只筛出 avx2，有输出说明支持 x86-64-v3 的关键指令
+grep -o 'avx2' /proc/cpuinfo | head -1
+
+# 查看内存总量，判断是否满足最低要求
+free -h
+
+# 查看磁盘与现有分区，确认安装目标盘
+lsblk
+
+# 查看固件模式，UEFI 与 Legacy 的分区方案不同
+ls /sys/firmware/efi
+```
+
+`lsblk` 的输出要重点看三件事：目标盘有没有挂载点、有没有现存分区、容量是否与订单一致。云主机还可能有一块未挂载的数据盘，装系统时不要误选。
+
+### 2.2 系统信息确认
+
+拿到机器不要急着改配置，先确认自己在什么系统上。发行版判断错，后面的包管理命令会全部失效。
+
+```bash
+# ========== 系统身份 ==========
+# 查看发行版名称、版本号和 ID
+cat /etc/os-release
+
+# 查看内核版本，判断是否支持 cgroup v2、BBR 等特性
+uname -r
+
+# 查看内核架构位数
+getconf LONG_BIT
+
+# 查看系统启动时间与负载
+uptime
+```
+
+预期输出类似（Ubuntu 24.04，内核小版本会不同）：
+
+```text
+PRETTY_NAME="Ubuntu 24.04.3 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+ID=ubuntu
+...
+6.8.0-51-generic
+64
+```
+
+| 字段 | 决定什么 | 用错后的后果 |
+|---|---|---|
+| `ID` | 用 `apt` 还是 `dnf` | 命令不存在 |
+| `VERSION_ID` | 软件源地址与支持周期 | 源 404、装到不兼容包 |
+| `uname -r` | 内核特性与驱动 | 特性不可用、驱动编译失败 |
+| `getconf LONG_BIT` | 用户态位数 | 装错架构的包 |
+
+装第一个包，顺便验证包管理和服务管理都通：
+
+```bash
+# ========== 首次安装验证 ==========
+# 刷新本地包索引（Debian 系必须，RHEL 系可跳过）
+sudo apt update
+
+# 安装 Nginx 作为验证对象
+sudo apt install -y nginx
+
+# 设置开机自启并立即启动
+sudo systemctl enable --now nginx
+
+# 本机访问，确认服务真的在监听
+curl -I http://127.0.0.1
+
+# 查看服务状态与最近日志
+systemctl status nginx --no-pager
+```
+
+预期返回 `HTTP/1.1 200 OK` 和 `Server: nginx/...`。`enable --now` 拆开就是“设开机自启 + 现在启动”。只 `start` 不 `enable`，重启机器后服务就没了，这是“昨天还好好的”最常见的来源。
+
+### 2.3 账号与 SSH 密钥
+
+初始化账号分两类：给人用的运维账号，给应用用的服务账号。两者权限边界必须分开。
+
+```bash
+# ========== 运维账号 ==========
+# 创建带家目录、登录 Shell 为 bash 的账号
+sudo useradd -m -s /bin/bash deploy
+
+# 设置初始密码，首次登录后应改为密钥
+sudo passwd deploy
+
+# 加入 sudo 组（RHEL 系改为 wheel）
+sudo usermod -aG sudo deploy
+
+# 确认 uid、家目录和附加组
+id deploy
+
+# ========== 服务账号 ==========
+# 创建系统用户，禁止登录，指定不自动创建的家目录
+sudo useradd -r -s /usr/sbin/nologin -d /opt/app appuser
+
+# 创建应用目录与日志目录
+sudo mkdir -p /opt/app /data/app /data/logs
+
+# 只把需要写的目录交给服务账号
+sudo chown -R appuser:appuser /opt/app /data/app /data/logs
+```
+
+| 参数 | 作用 | 省略后的后果 |
+|---|---|---|
+| `-m` | 创建家目录 | 密钥登录失败、配置无处存放 |
+| `-s` | 指定登录 Shell | 默认可能是 `/bin/sh` |
+| `-r` | 创建系统用户 | 占用普通用户 uid 区间 |
+| `-aG` | 追加附加组 | 只写 `-G` 会替换全部附加组 |
+
+`usermod -G` 少写 `-a` 会把 docker、dev 等附加组一起冲掉，sudo 权限可能当场消失。改完必须用 `id` 复核。
+
+密钥登录在自己电脑上生成，不在服务器上：
+
+```bash
+# ========== 生成并分发密钥 ==========
+# 生成 ed25519 密钥对，-C 是注释，-f 指定私钥路径
 ssh-keygen -t ed25519 -C "deploy@web01" -f ~/.ssh/web01_key
-ssh-copy-id -i ~/.ssh/web01_key.pub deploy@<公网IP>
 
-# ③ 验证密钥登录（这一步不通过，绝对不要往下走）
-ssh -i ~/.ssh/web01_key deploy@<公网IP>     # 不提示输密码才算成功
+# 把公钥复制到服务器目标账号
+ssh-copy-id -i ~/.ssh/web01_key.pub deploy@203.0.113.10
 
-# ④ 关掉 root 登录和密码登录（已登录的 deploy 会话里执行）
+# 先验证密钥能登录，再改 sshd
+ssh -i ~/.ssh/web01_key deploy@203.0.113.10
+```
+
+这一步不通过，绝对不要往下改 sshd。改坏了只能走云控制台的 VNC，恢复成本远高于多验证一次。
+
+### 2.4 权限与安全加固
+
+拿到密钥能进之后，再关闭 root 直登和密码登录。配置写在 `sshd_config.d/` 的独立文件里，不动原厂配置。
+
+```bash
+# ========== SSH 加固 ==========
+# 写入独立 drop-in 配置，避免升级时与原厂文件冲突
 sudo tee /etc/ssh/sshd_config.d/99-hardening.conf >/dev/null <<'EOF'
 PermitRootLogin no
 PasswordAuthentication no
-PermitEmptyPasswords no
 KbdInteractiveAuthentication no
 MaxAuthTries 3
 EOF
 
-sudo sshd -t                 # 语法检查，无输出=正确
-sudo systemctl reload ssh    # Ubuntu 服务名是 ssh，RHEL 系是 sshd
-# 用 reload 不用 restart：不断开当前连接，配错还能改回来
-# 为什么写 sshd_config.d：OpenSSH 是「首次出现的配置生效」，
-# 独立文件既覆盖默认值、又不改原厂配置，升级时不冲突
-# CentOS 7 默认没有 Include 这一行、也没这个目录，只能改主文件
-# 连不上时自救：VNC 进去 rm 掉 99-hardening.conf，再 systemctl reload ssh
+# 先做语法检查，通过后再 reload
+sudo sshd -t
 
-# ⑤ 时区 + 时间同步（时间不对会导致证书校验失败、日志错序、cron 跑错）
-sudo timedatectl set-timezone Asia/Shanghai
-sudo timedatectl set-ntp true
-sudo hostnamectl set-hostname web01   # 主机名会进日志、监控标签与证书申请，先定下来
-timedatectl                  # 期望：Time zone = CST，System clock synchronized: yes
-
-# ⑥ 挂数据盘
-lsblk                        # 确认 vdb 有 SIZE 但没有 MOUNTPOINT
-sudo fdisk /dev/vdb          # 交互：n → p → 回车 ×3 → w
-sudo mkfs.ext4 /dev/vdb1
-sudo mkdir -p /data && sudo mount /dev/vdb1 /data
-UUID_STR=$(sudo blkid -s UUID -o value /dev/vdb1)
-echo "UUID=${UUID_STR}  /data  ext4  defaults,nofail  0  2" | sudo tee -a /etc/fstab
-sudo umount /data && sudo mount -a && df -h /data    # 必须先验证，写错 fstab 会开不了机
-sudo mkdir -p /data/{app,logs,backup,www} && sudo chown -R deploy:deploy /data
-# 应用用独立账号跑（不能登录）：-r 系统用户，-s nologin 禁登录
-sudo useradd -r -s /sbin/nologin -d /opt/app appuser
-sudo mkdir -p /opt/app && sudo chown appuser:appuser /opt/app
-# 只把应用要写的两个目录交给它，备份目录它碰不到
-sudo chown -R appuser:appuser /data/app /data/logs && sudo chmod 750 /data/app /data/logs
-
-# ⑦ 换国内源 + 装基础工具（Ubuntu 24.04）
-# 24.04 的源是 deb822 格式的 ubuntu.sources；改 /etc/apt/sources.list 是空操作
-sudo cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.bak
-sudo sed -i 's@//.*archive.ubuntu.com@//mirrors.aliyun.com@g; s@//.*security.ubuntu.com@//mirrors.aliyun.com@g' /etc/apt/sources.list.d/ubuntu.sources
-sudo apt update          # 输出里出现 mirrors.aliyun.com 才算换成功
-sudo apt install -y curl wget vim git unzip net-tools dnsutils telnet htop lsof tree jq
-
-# ⑧ 防火墙（顺序不能错：先放行 22，最后 enable）
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
-sudo ufw enable
-sudo ufw status verbose
+# reload 不断开现有连接；restart 会断，配错就只能走 VNC
+sudo systemctl reload ssh
 ```
 
-**Rocky 9 / 10 的等价动作**（第 ⑦ 步换成这个）：
-
-```bash
-sudo sed -e 's|^mirrorlist=|#mirrorlist=|g' \
-         -e 's|^#baseurl=http://dl.rockylinux.org/$contentdir|baseurl=https://mirrors.aliyun.com/rockylinux|g' \
-         -i.bak /etc/yum.repos.d/[Rr]ocky*.repo
-sudo dnf makecache
-sudo dnf repolist -v | grep -i 'Repo-baseurl'    # 显示出 aliyun 地址才算成功
-```
-
-> Rocky 10 的 repo 文件是**小写** `rocky.repo` 等，8/9 是 `Rocky-*.repo`；`[Rr]ocky*.repo` 两种都能匹配。写错通配符会 `sed: can't read`，一个文件都不改。
-> 阿里云 ECS 走内网更快：`mirrors.aliyun.com` → `mirrors.cloud.aliyuncs.com`（VPC）/ `mirrors.aliyuncs.com`（经典网络）。
-> Ubuntu 24.04 懒得 sed，可直接用阿里云官网给的整份 deb822 内容覆盖（noble 与 noble-security 两段）。
-> 存量 CentOS 7：阿里云 `centos/7` 仍在（已冻结、不再更新）；CentOS 6/8 才需要 vault 版。
-
-**端口只开这三个，其余一律关**：
-
-| 端口 | 用途 | 是否开放 |
+| 配置项 | 作用 | 漏配的后果 |
 |---|---|---|
-| 22/tcp | SSH | ✅ 优先限制来源 IP；改非标端口只减少日志噪音，不算安全措施 |
-| 80 / 443 | Web / HTTPS | ✅ |
-| 3306 / 6379 | MySQL / Redis | ❌ 绝不公网（Redis 未授权访问是最常见的事故） |
-| 8080 | 应用 | ❌ 由 Nginx 反代，不直接暴露 |
+| `PermitRootLogin no` | 禁止 root 直接登录 | root 成为爆破目标 |
+| `PasswordAuthentication no` | 关闭密码认证 | 弱口令可被撞库 |
+| `KbdInteractiveAuthentication no` | 关闭键盘交互认证 | PAM 通道仍可收密码 |
+| `MaxAuthTries 3` | 限制认证尝试次数 | 爆破窗口变大 |
 
-> `enable` 之前必须先放行 22；云安全组和主机防火墙是两层，两边都要配且一致。
+为什么写在 `sshd_config.d/`：OpenSSH 的规则是先读到的值生效，主配置顶部的 `Include` 会先把 `sshd_config.d/*.conf` 读进来，所以独立文件能覆盖主配置的同名项，又不动原厂文件，升级不冲突。服务名在两派不同：Ubuntu 是 `ssh`，RHEL 系是 `sshd`，`reload` 时按发行版替换。
 
-### 1.2 验收（9 项全过才算交付）
+> **注意**：只关 `PasswordAuthentication` 不够。PAM 的键盘交互通道仍可能接受密码，`KbdInteractiveAuthentication no` 不能漏。
 
-| # | 检查 | 命令 | 通过标准 |
-|---|---|---|---|
-| 1 | 运维账号可用 | `id deploy` | 有 uid，`groups` 含 `sudo` |
-| 2 | 密钥登录 | `ssh -i ~/.ssh/web01_key deploy@IP` | 不提示密码 |
-| 3 | root 被禁 | `ssh root@IP` | `Permission denied (publickey)` |
-| 4 | 时间 | `timedatectl` | CST、`synchronized: yes`、NTP active |
-| 5 | 数据盘 | `df -h /data` | 有 `/data`，容量正确 |
-| 6 | fstab 正确 | `sudo mount -a`（再重启一次验证） | 无报错，重启后仍挂载 |
-| 7 | 软件 | `command -v curl jq htop` | 都能输出路径 |
-| 8 | 防火墙 | `sudo ufw status verbose` | active，仅 22/80/443 |
-| 9 | 应用账号隔离 | `sudo -u appuser touch /data/logs/x` | 写 logs 成功；换 `/data/backup/x` 应失败 |
+> **运维红线**：改 sshd 前必须确认云控制台 VNC 可用，并保留一个已登录的会话。真连不上时，VNC 进去删除 `/etc/ssh/sshd_config.d/99-hardening.conf`，再 `systemctl reload ssh`。
 
-> **第 6 项要真的重启一次**。`mount -a` 只验证当前配置能挂，不验证开机时能不能挂。
-> **别忘了云安全组**：安全组在云网络层，ufw 在主机层，**两层都要放行**。「端口开了还连不上」先查另一层。
-
-### 1.3 复制到 20 台
-
-手工做 1 台可以，做 20 台要把上面 8 步写成脚本。但**上面的命令不是幂等的**：`useradd` 第二次报「已存在」、`mkfs` 会把盘清空、`>> fstab` 会重复追加。脚本至少补三处判断：
+验证方式是 root 登录应被拒绝：
 
 ```bash
-id deploy >/dev/null 2>&1 || useradd -m -s /bin/bash deploy
-lsblk -no FSTYPE /dev/vdb1 | grep -q . || sudo mkfs.ext4 /dev/vdb1
-grep -q "UUID=${UUID_STR}" /etc/fstab || echo "UUID=${UUID_STR}  /data  ext4  defaults,nofail  0  2" | sudo tee -a /etc/fstab
+# ========== 加固验证 ==========
+# 预期返回 Permission denied (publickey)
+ssh root@203.0.113.10
+
+# 确认 sshd 实际生效的配置
+sudo sshd -T | grep -E 'permitrootlogin|passwordauthentication'
+
+# 查看认证失败记录
+sudo journalctl -u ssh --since "10 min ago" --no-pager
 ```
-
-`fdisk` 是交互式的，脚本里会卡住，换成 `parted`（`mklabel` 会清掉分区表，只在空盘上跑）：
-
-```bash
-sudo parted -s /dev/vdb mklabel gpt
-sudo parted -s /dev/vdb mkpart data ext4 0% 100% && sudo partprobe /dev/vdb
-```
-
-复制时的四个现实约束：
-
-| 约束 | 处理 |
-|---|---|
-| 每台 UUID 不同 | 脚本里 `blkid` 现取，不要写死 |
-| 公钥要逐台分发 | 云控制台批量绑定，或 `ssh-copy-id` 循环 |
-| 安全组是云层配置 | 脚本管不到，单独在控制台或 IaC 里做 |
-| 部分机器已有数据盘 | 先 `lsblk` 判断，别重复格式化 |
 
 ---
 
-## 二、高频问答：会卡住你的地方，也是面试最常问的
+## 三、软件包管理
 
-### 2.1 `apt install` 报 `Unable to locate package`
+### 3.1 包管理原理
 
-**现场**
-
-```bash
-sudo apt update          # 只刷新索引，不装东西
-apt policy nginx         # 有 Candidate 才说明索引里有它
-```
-
-先刷新索引再查一遍，确认「本地到底知不知道有这个包」。
-
-**要点**
-
-- 这个报错基本等于「本地索引里没有这个包」，不是安装过程出错。
-- `apt` 是先查本地索引再装，索引过期就查不到新发布的包。
-- 判断依据是 `apt policy` 有没有 `Candidate`，以及它来自哪个源。
-
-**追问**
-
-- 刷新了索引还是找不到？→ 包名写错，或这个软件不在已启用的源里。
-- `apt update` 到底改了什么？→ 只重写本地的包列表快照，不动已安装的软件。
-
-> ⚠️ `apt update` ≠ `apt upgrade`。前者只是刷新「有哪些包、什么版本」，装包前必须先做。
-
-### 2.2 加完 sudo 组，sudo 反而不能用了
-
-**现场**
-
-先 `id deploy`，看 `groups` 里原来的 `docker`、`dev` 是不是没了。
-
-```bash
-# ✘ 会把其它附加组全部冲掉
-sudo usermod -G sudo deploy
-
-# ✔ 追加
-sudo usermod -aG sudo deploy
-```
-
-**要点**
-
-- 少写了一个 `a`：`-G` 是**替换**附加组，不是追加。
-- 系统没坏，文件也没坏，丢的是这个人原来在其他组里的身份。
-- 补救要用另一个有 sudo 的账号（或云控制台 VNC 用 root）把组加回来。
-
-**追问**
-
-- 丢的只是 sudo 吗？→ 不止，`docker`、`dev` 这类附加组一起丢了，要按原清单补回来。
-- `-g` 和 `-G` 怎么区分？→ `-g` 改主组，`-G` 改附加组，只有 `-G` 需要配 `-a`。
-
-### 2.3 目录能 `ls` 出文件名，但读不了也进不去
-
-**现场**
-
-```bash
-namei -l /opt/app/config.yml
-# 每一层都要有 x，否则路径走不到
-```
-
-**要点**
-
-- 目录有 `r` 没 `x`：能看见名字，但进不去、也读不了里面的文件。
-- 目录的 `x` 是**通行证**，文件的 `x` 是**可执行**，同名不同义。
-- 逐级看到底哪一层缺 `x`，路径上任何一层断掉都走不到目标。
-
-**追问**
-
-- 直接 `chmod 777` 为什么是错的？→ 把写权限也给了所有人，目录有 `w` 和 `x` 就能删里面任何文件。
-- 只有 `r` 能 `ls` 出什么？→ 只能列出名字，拿不到属性，也进不去。
-
-> 目录的 `x` 是**通行证**，文件的 `x` 是**可执行**。同名不同义，这是最容易混的一处。
-
-### 2.4 磁盘明明有空间，却报 `No space left on device`
-
-**现场**
-
-```bash
-df -i                              # IUse% 到 100% 就是这个原因
-# 找哪个目录的文件数最多
-sudo find / -xdev -type d -exec sh -c 'echo "$(ls -f "$1" | wc -l) $1"' _ {} \; 2>/dev/null | sort -rn | head
-```
-
-**要点**
-
-- `df -h` 有空间还报满，先查 inode，不是系统 bug。
-- 块和 inode 是两套**互相独立**的配额：小文件极多时块还有剩，inode 已经用完。
-- `df -i` 的 `IUse%` 到 100% 就是确诊，不用再猜。
-
-**追问**
-
-- 哪些东西会烧 inode？→ 日志、缓存碎片、session、邮件队列这类海量小文件。
-- 定位到分区后下一步？→ 按目录统计文件数，找那个几十万文件的目录。
-- 为什么删大文件没用？→ 大文件占的是块，不是 inode。
-
-> 这条会遍历全部目录，文件多的机器上跑很久。先 `du -h --max-depth=1 /var | sort -rh | head` 定位到可疑分区再查。
->
-> **低频但致命，所以留在这一节而不是扔进冷门**。一年遇不到一次，遇到时业务直接写不进去，而且人的直觉判断一定是错的。
-
-### 2.5 删了大文件，空间没释放
-
-**现场**
-
-```bash
-sudo lsof | grep deleted
-# 正确做法：重启那个进程，或清空而不是删除
-sudo truncate -s 0 /var/log/nginx/access.log
-```
-
-**要点**
-
-- `rm` 只删了「文件名到 inode 的链接」，进程还开着句柄，inode 还在被引用，块就不回收。
-- 所以 `df` 不降不是删得不够，继续删只会把问题扩大。
-- 正确做法是重启那个进程，或者一开始就清空而不是删除。
-
-**追问**
-
-- 为什么 Nginx 日志删了还在写？→ 它持有已删除文件的 fd，写进去的是旧 inode。
-- 不重启进程还有什么办法？→ `truncate -s 0` 清空，或让进程重新打开文件。
-- 怎么从源头避免？→ 日志交给 logrotate 轮转，不要手工 `rm`。
-
-> 典型场景：日志文件被 `rm` 了但 Nginx 还在往里写，`df` 一直不降。
-
-### 2.6 `ufw enable` 之后 SSH 断了，再也连不上
-
-**现场**
-
-云控制台 VNC 进去 `sudo ufw status`，会看到 22 不在列表里。
-
-```bash
-# 补救（VNC 里执行）
-sudo ufw allow 22/tcp
-```
-
-**要点**
-
-- 服务器没挂，是 `enable` 之前没放行 22，默认策略 deny incoming 立即生效。
-- ufw 的规则一 `enable` 就落地，没有「先试试」的阶段。
-
-**追问**
-
-- 已经断了怎么救？→ 走 VNC 或救援登录，补 `ufw allow 22/tcp`，不要再重启网络。
-- 改非标端口能防住吗？→ 只减少日志噪音，不算安全措施，该放行的还得放行。
-- 云上还有一层要管吗？→ 有，云安全组和主机防火墙都要配且一致。
-
-**正确顺序永远是**：`default deny` → `allow 22/80/443` → `enable`。
-
-### 2.7 端口放行了，外面还是连不上
-
-**现场**
-
-```bash
-ss -tunlp | grep 8080
-# 127.0.0.1:8080 → 只监听本机，外部永远连不上
-# 0.0.0.0:8080   → 监听所有网卡
-```
-
-**要点**
-
-- 先分两层：云安全组在云网络层，ufw 在主机层，只开一层就等于没开。
-- 再看服务监听地址，绑 `127.0.0.1` 的只对本机，外部永远连不上。
-- 排查顺序：安全组 → 主机防火墙 → 服务监听地址。
-
-**追问**
-
-- `0.0.0.0` 和 `127.0.0.1` 差在哪？→ 前者所有网卡，后者只有本机回环。
-- 两层都放行了还不通？→ 回到 `ss` 看进程到底绑在哪个地址和端口上。
-
-### 2.8 CentOS 上 Nginx 就是读不了某个目录
-
-**现场**
-
-```bash
-getenforce                       # Enforcing 就要考虑它
-sudo setenforce 0                # 仅用于快速验证，重启失效
-# 验证确实是它 → 用 restorecon / chcon / setsebool 修，不要长期关掉
-```
-
-**要点**
-
-- 权限位都对还读不了，先看 SELinux：RHEL 系默认 `enforcing`，它比权限位更早生效。
-- `setenforce 0` 只用于确认，重启就恢复，它不是修复方案。
-- 长期方案是打标签（`restorecon` / `chcon`）或放行对应布尔值。
-
-**追问**
-
-- 怎么确认是 SELinux 而不是权限？→ `getenforce` 为 Enforcing，且 `ausearch -m avc -ts recent` 有拒绝记录。
-- 生产直接关掉行不行？→ 等于拆掉一层防护，只在排障时临时关。
-- Ubuntu 上有对应物吗？→ 有，AppArmor，按 profile 限制程序。
-
-> ⚠️ 「生产直接关掉 SELinux」是老做法，等于拆掉一层防护。**只在排障时临时 `setenforce 0` 确认，长期方案是打标签或放行对应布尔值。**
-
-### 2.9 `chmod` 的数字不是减法（umask 也是）
-
-**现场**
-
-```bash
-umask            # 022 → 新文件 644、新目录 755
-umask 027        # 新文件 640、新目录 750
-```
-
-**要点**
-
-- 是**按位与取反**：`666 & ~027 = 640`，不是 `666 - 027 = 637`。
-- 位掩码的语义是「取反再按位与」，不是算术减法，数字看起来接近只是巧合。
-- 记法：umask 里出现的位，就是「要从基础权限里拿掉的位」。
-
-**追问**
-
-- 为什么新文件从 666 算、目录从 777 算？→ 文件默认不给执行位，目录必须能进。
-- `umask -S` 有什么用？→ 直接看符号形式，比对着数字心算可靠。
-
-### 2.10 改完 `/etc/fstab` 重启，机器起不来了
-
-**现场**
-
-进救援模式看 `journalctl -xb`，或者改完就用 `mount -a` 提前验证。
-
-```bash
-# 加 nofail：这块盘挂了，系统仍然能起来
-UUID=xxxx  /data  ext4  defaults,nofail  0  2
-sudo mount -a          # 改完立刻验证，别等重启
-```
-
-**要点**
-
-- 不是系统坏了，是 fstab 里写的设备/UUID 不存在或写错，开机挂载失败。
-- 没有 `nofail` 就会卡在紧急模式，整机起不来。
-- 改完必须 `mount -a` 验证，别等重启才发现。
-
-**追问**
-
-- 已经起不来了怎么进去？→ 救援模式或 VNC，`journalctl -xb` 定位后注释掉那一行再重启。
-- 为什么用 UUID 不用 `/dev/vdb1`？→ 设备名会随插拔和云盘挂载顺序变，UUID 才稳定。
-- 加了 `nofail` 会不会掩盖问题？→ 盘挂了系统照常启动，缺盘的后果要业务自己兜。
-
----
-
-## 三、核心知识：只留要理解的部分
-
-### 3.1 发行版与包管理器
-
-Linux 是**内核**；你能操作的命令、包、服务来自**发行版**。发行版分成两大门派，最实际的区别是包管理和软件源格式：
-
-```mermaid
-flowchart TB
-    classDef core fill:#FEF3C7,stroke:#D97706,color:#78350F
-    classDef deb fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef rpm fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef leaf fill:#F1F5F9,stroke:#64748B,color:#334155
-
-    K["Linux 内核"]:::core --> D["Debian 系 apt / .deb"]:::deb
-    K --> R["RHEL 系 dnf / .rpm"]:::rpm
-    D --> U["Ubuntu LTS"]:::leaf
-    D --> DB["Debian"]:::leaf
-    D --> M["Mint"]:::leaf
-    R --> RH["RHEL"]:::leaf
-    R --> RM["Rocky / Alma"]:::leaf
-    R --> CS["CentOS Stream"]:::leaf
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
-```
-
-| | Debian 系 | RHEL 系 |
-|---|---|---|
-| 代表 | Debian、**Ubuntu** | **CentOS**、Rocky、Alma、RHEL |
-| 包管理器 | `apt`（`.deb`） | `yum` / `dnf`（`.rpm`） |
-| 服务管理 | systemd | systemd（**两边已统一**） |
-| 防火墙 | `ufw`（默认不启用） | `firewalld`（默认启用） |
-| 强制访问控制 | AppArmor（默认启用，按 profile 限制程序） | SELinux（默认 `enforcing`） |
-
-**选型**：新机器默认 **Ubuntu 24.04 LTS**；客户是政企/老机房跟 **Rocky 9 / Alma 9**；容器里用 Alpine。
-
-- Ubuntu：22.04 → 2027、24.04 → 2029、26.04 → 2031（标准支持截止，开 ESM 再延 5 年）
-- RHEL 10 / Rocky 10 / Alma 10 已于 2025 年 GA，但**要求 x86-64-v3 CPU**，老硬件装不上
-- **CentOS Linux 已于 2024-06-30 停止维护**，新机器不要再用；存量 CentOS 7 仍在跑，该学的照学
-
-> **`yum` 和 `dnf` 不是两套东西**：RHEL 8+ 上 `yum` 是 `dnf` 的软链接。CentOS 7 才是真正的 `yum`。
-
-> **面试**：常问「CentOS 和 Ubuntu 最实际的区别是什么？」答：包管理和软件源格式两套，服务管理都是 systemd。
-
-### 3.2 权限模型
-
-**核心模型：每个进程属于某个用户；每个文件属于某个用户和一个组；「能不能操作」= 拿进程身份去比对文件归属与权限位。**
-
-判定顺序是**固定的**，理解它就不用背规则：
-
-```mermaid
-flowchart TD
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef data fill:#FEF3C7,stroke:#D97706,color:#78350F
-    classDef danger fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D
-
-    P["进程带着 uid/gid 来访问"]:::client
-    Q1{"uid == 文件属主?"}:::service
-    Q2{"gid 命中文件属组，或进程在附加组里?"}:::service
-    D1{"属主三位允许?"}:::service
-    D2{"属组三位允许?"}:::service
-    D3{"other 三位允许?"}:::data
-    NO["拒绝"]:::danger
-    OK["放行"]:::service
-
-    P --> Q1
-    Q1 -->|"是"| D1
-    Q1 -->|"否"| Q2
-    Q2 -->|"是"| D2
-    Q2 -->|"否"| D3
-    D1 -->|"是"| OK
-    D1 -->|"否"| NO
-    D2 -->|"是"| OK
-    D2 -->|"否"| NO
-    D3 -->|"是"| OK
-    D3 -->|"否"| NO
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
-```
-
-**「不再往下看」是理解权限的关键**：属主位一旦匹配，就只用属主那三位，哪怕组权限更宽也不生效。这解释了大量「我明明给了组权限，为什么还是不行」。
-
-**主组 vs 附加组**：给用户加权限最常用的办法**不是改文件，而是把人加进组**（附加组，记录在 `/etc/group` 里）。
-
-**r / w / x 对文件和目录含义不同**：
-
-| 权限 | 对文件 | 对目录 |
-|---|---|---|
-| `r` | 读内容 | 列出名字（`ls`） |
-| `w` | 改内容 | 在目录里增删文件 |
-| `x` | 执行 | **进入目录 / 访问内含文件** |
-
-两个反直觉结论：
-1. **目录的 `w` 比文件的 `w` 更危险**：目录有 `w` 和 `x` 就能删掉里面任何文件，哪怕文件本身是 `444`；只有 `w` 没有 `x` 时，连目录都进不去。
-2. **目录的 `x` 是门票**：只有 `r` 没有 `x`，能看见名字，但进不去、也读不了内容（对应 2.3）。
-
-**数字表示**：r=4、w=2、x=1 相加。
-
-| 数字 | 含义 | 用在哪 |
-|---|---|---|
-| `644` | 属主读写，其他只读 | 普通文件默认 |
-| `600` | 仅属主读写 | **私钥**、含密码的配置 |
-| `755` | 属主全权，其他读+执行 | 目录默认、可执行程序 |
-| `700` | 仅属主可进 | 家目录、`.ssh` |
-| `777` | 所有人全权 | ⚠️ 几乎永远不该出现 |
-
-**umask**：新文件/目录的默认权限是 `基础权限 & ~umask`（文件 666、目录 777），**不是减法**（对应 2.9）。
-
-> **口令文件三件套**：`/etc/passwd` 存账号（`644`，人人可读）、`/etc/shadow` 存密码哈希（只有 root 可读）、`/etc/group` 存组。`passwd` 七个字段：`用户名:x:uid:gid:描述:家目录:shell`；uid `0` 是 root、`1–999` 是系统用户、`1000+` 是普通用户。
-> **`ls -l` 显示的是数字 uid 而不是用户名**，说明该 uid 在 `passwd` 里查不到——常见于容器挂载宿主机目录。
-
-> **面试**：常问「权限判定的顺序是什么？为什么给了组权限还是不生效？」答：属主→属组→other，属主位一匹配就不再往下看。
-
-### 3.3 sudo 与提权
-
-`sudo` = 以 root 身份执行**一条**命令。它验证的是**你自己的密码**，而不是 root 的——因为验证 root 密码等于又发了一个 root 权限，`sudo` 的意义就没了。
+包管理器解决三个问题：从哪里拿包、依赖怎么解、装完怎么记账。理解这三步，才能判断“装不上”卡在哪一环。
 
 ```mermaid
 flowchart LR
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef lowlevel fill:#CCFBF1,stroke:#0D9488,color:#134E4A
-    classDef data fill:#FEF3C7,stroke:#D97706,color:#78350F
-
-    A["deploy 执行，sudo systemctl restart nginx"]:::client
-    B["查 /etc/sudoers：有权限吗？"]:::service
-    C["要求输入自己的密码"]:::client
-    D["以 root 身份执行"]:::lowlevel
-    E["记日志：/var/log/auth.log（Ubuntu），/var/log/secure（RHEL）"]:::data
-
-    A --> B --> C --> D --> E
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
+    SRC["软件源<br/>仓库元数据"] --> IDX["本地索引<br/>apt update / dnf makecache"]
+    IDX --> RES["依赖求解<br/>版本与冲突检查"]
+    RES --> DL["下载包<br/>.deb / .rpm"]
+    DL --> INS["解包写入<br/>文件落到 /usr /etc"]
+    INS --> DB["包数据库<br/>/var/lib/dpkg · /var/lib/rpm"]
+    DB --> RM["查询与卸载<br/>dpkg -S · rpm -qf"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class SRC client
+    class IDX,RES,DL engine
+    class INS,DB,RM image
 ```
 
-**为什么必须用 `visudo`**：它会做语法检查。`/etc/sudoers` 语法一错，所有 sudo 全部失效——包括你想改回来的那一次。
+| 概念 | Debian 系 | RHEL 系 |
+|---|---|---|
+| 包文件 | `.deb` | `.rpm` |
+| 高层工具 | `apt` | `dnf` |
+| 低层工具 | `dpkg` | `rpm` |
+| 包数据库 | `/var/lib/dpkg` | `/var/lib/rpm` |
+| 查文件归属 | `dpkg -S /path` | `rpm -qf /path` |
+
+高层工具负责联网、依赖和仓库，低层工具只负责单个包文件的安装与查询。离线环境里拿到一个 `.deb` 或 `.rpm`，用的就是低层工具。
+
+### 3.2 apt 常用命令
 
 ```bash
-sudo visudo                          # 永远用这个，不要直接 vim /etc/sudoers
-sudo visudo -f /etc/sudoers.d/deploy # 推荐：放独立文件
+# ========== 索引与查询 ==========
+# 刷新软件源索引，安装前必做
+sudo apt update
+
+# 搜索包名与描述
+apt search nginx
+
+# 查看候选版本、已装版本和来源
+apt policy nginx
+
+# 查看包内包含哪些文件（已安装）
+dpkg -L nginx
+
+# 反查某个文件属于哪个包
+dpkg -S /usr/sbin/nginx
+
+# ========== 安装与卸载 ==========
+# 安装并自动确认
+sudo apt install -y nginx
+
+# 只下载不安装，用于离线传输
+apt download nginx
+
+# 卸载但保留配置
+sudo apt remove nginx
+
+# 连配置一起卸载
+sudo apt purge nginx
+
+# 清理不再被依赖的包
+sudo apt autoremove -y
+
+# ========== 升级 ==========
+# 列出可升级的包
+apt list --upgradable
+
+# 执行升级，不处理内核与依赖大变动
+sudo apt upgrade -y
+
+# 允许删除旧包以完成完整升级
+sudo apt full-upgrade -y
 ```
 
-语法：`用户或%组  从哪登录  以谁身份  [NOPASSWD:]  允许的命令`
+`apt upgrade` 与 `full-upgrade` 的差别在于是否允许为满足依赖而删除包。生产环境执行前先看 `apt list --upgradable`，确认没有意外的大版本跃迁。
+
+### 3.3 dnf 常用命令
 
 ```bash
-deploy  ALL=(ALL) NOPASSWD: ALL                             # 自动化账号免密
-opsuser ALL=(ALL) NOPASSWD: /bin/systemctl restart nginx    # 最小权限
-%dev    ALL=(ALL) ALL                                       # 组成员需输密码
+# ========== 查询 ==========
+# 刷新元数据缓存
+sudo dnf makecache
+
+# 搜索包
+dnf search nginx
+
+# 查看包信息与来源仓库
+dnf info nginx
+
+# 查看某个文件属于哪个包
+rpm -qf /usr/sbin/nginx
+
+# 查看包安装后释放哪些文件
+rpm -ql nginx
+
+# ========== 安装与卸载 ==========
+# 安装并自动确认
+sudo dnf install -y nginx
+
+# 只下载 RPM 到本地目录
+dnf download --destdir /tmp/rpms nginx
+
+# 卸载包
+sudo dnf remove nginx
+
+# 清理缓存
+sudo dnf clean all
+
+# ========== 历史与回滚 ==========
+# 查看事务历史
+dnf history
+
+# 回滚到指定事务之前
+sudo dnf history undo <事务ID>
 ```
 
-> **面试**：常问「sudo 为什么验证的是自己的密码？为什么必须用 visudo？」答：验证 root 密码等于再发一个 root 权限；visudo 做语法检查，写错会让所有 sudo 一起失效。
+`dnf history undo` 只在包层面回滚，不会还原被改写的配置文件。数据库、证书这类有状态的组件，回滚包版本不等于回滚数据。
 
-### 3.4 文件系统
+### 3.4 软件源配置与离线安装
 
-文件系统给每个文件分配两样东西：
+Ubuntu 24.04 使用 deb822 格式，改 `/etc/apt/sources.list` 是空操作，真正生效的是 `/etc/apt/sources.list.d/*.sources`。
 
-| | 管什么 | 用完的报错 |
-|---|---|---|
-| **块（block）** | 文件内容的实际空间 | `No space left on device` |
-| **inode** | 元数据：权限、属主、时间、数据块位置 | 同样报 `No space left on device` |
+```bash
+# ========== Ubuntu 换源 ==========
+# 备份原文件，出问题可立即恢复
+sudo cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.bak
 
-**关键**：这两套配额**互相独立**。所以「`df -h` 还有空间但写不进去」是真实存在的——inode 用完了（对应 2.4）。
+# 把官方域名替换为镜像站占位符，实际地址按环境替换
+sudo sed -i 's@//.*archive.ubuntu.com@//mirrors.example.com@g' /etc/apt/sources.list.d/ubuntu.sources
 
-**什么会烧 inode**：大量小文件——session 文件、缓存碎片、邮件队列、几百万行的小日志文件。
+# 刷新索引，输出里出现新域名才算成功
+sudo apt update
 
-**`rm` 为什么不一定释放空间**：`rm` 删的是「文件名 → inode」的链接。只要还有进程打开着这个 inode，块就不会回收（对应 2.5）。
+# 确认文件里实际写的是什么
+grep -E 'URIs|Suites' /etc/apt/sources.list.d/ubuntu.sources
+```
 
-### 3.5 设备挂载
+RHEL 系对应动作是替换 `baseurl` 并禁用 `mirrorlist`：
 
-**挂载 = 把一个文件系统接到目录树的某个点上**。Linux 没有 C/D 盘，所有东西都挂在 `/` 下面。
+```bash
+# ========== Rocky / Alma 换源 ==========
+# 注释 mirrorlist，替换 baseurl，同时生成 .bak 备份
+sudo sed -e 's|^mirrorlist=|#mirrorlist=|g' \
+         -e 's|^#baseurl=http://dl.rockylinux.org/$contentdir|baseurl=https://mirrors.example.com/rockylinux|g' \
+         -i.bak /etc/yum.repos.d/[Rr]ocky*.repo
 
-| 目录 | 装什么 | 排查时的意义 |
-|---|---|---|
-| `/etc` | 配置 | 「服务配错了」→ 来这里找 |
-| `/var/log` | 日志 | 「服务为什么挂了」→ 来这里找 |
-| `/var/lib` | 状态数据（mysql、docker） | 备份要覆盖这里 |
-| `/opt` | 自己装的第三方业务系统 | 自装应用放这 |
-| `/tmp` | 临时文件 | **会被定时清理，重启也没**，别放重要东西 |
+# 重建元数据缓存
+sudo dnf makecache
 
-**fstab 为什么要用 UUID**：`/dev/vdb1` 这种设备名会随插拔顺序、云盘挂载顺序变化，**UUID 才是稳定的身份**。
+# 确认仓库地址已生效
+dnf repolist -v
+```
 
-**`nofail` 的作用**：这块盘挂不上时，系统**继续启动**而不是卡在紧急模式。数据盘都应该加。
+Rocky 10 的 repo 文件名是小写 `rocky.repo`，8/9 是 `Rocky-*.repo`，`[Rr]ocky*.repo` 两种都能匹配。写错通配符会报 `sed: can't read`，一个文件都不改。
 
-fstab 六列：`UUID | 挂载点 | 文件系统 | 挂载选项 | dump(0) | fsck顺序(根=1,其他=2,0=不检查)`。dump 列现在固定写 `0`，早就不靠它备份了。
+> **注意**：`sed -i` 直接覆盖源文件且不可撤销。换源前必须备份，执行后先 `cat` 或 `grep` 核对文件内容，再运行 `apt update` 或 `dnf makecache`。源地址写错会导致后续所有安装失败。
 
-### 3.6 系统时区
+离线环境用低层工具安装，注意依赖顺序：
 
-时间不对会连锁出问题：日志顺序错乱、HTTPS 证书校验失败、cron 在错误的时间跑、分布式系统的心跳判断出错。
+```bash
+# ========== 离线安装 ==========
+# 安装本地 deb 包，缺失依赖会报错
+sudo dpkg -i ./nginx_1.24.0_amd64.deb
 
-| 层 | 谁管 | 怎么查 |
-|---|---|---|
-| 时区 | `timedatectl set-timezone` | `timedatectl` 第一行 |
-| 系统时钟同步 | NTP（chrony / systemd-timesyncd） | `System clock synchronized: yes` |
-| 应用自己的时区 | Java `-Duser.timezone`、MySQL `default-time-zone`、容器 `TZ` | 各自配置 |
+# 自动补齐缺失依赖
+sudo apt install -f -y
 
-> **系统时区对了，应用不一定对**。JVM、MySQL、容器都可能用自己的默认时区（常见是 UTC）。
+# 安装本地 rpm 包
+sudo rpm -ivh ./nginx-1.24.0.x86_64.rpm
 
-### 3.7 firewalld 与 ufw 的对应
+# 仅升级已安装的包
+sudo rpm -Uvh ./nginx-1.24.0.x86_64.rpm
+```
 
-RHEL 系默认 firewalld，Ubuntu 默认 ufw（且未启用）。两者都是管理前端，底层最终都落到 nftables/iptables；**不要同时开两套**。
+> **注意**：`rpm -ivh --nodeps` 与 `dpkg --force-depends` 会跳过依赖检查，装完往往在启动时才报缺库。除非明确知道缺的是什么，否则不要用。
 
-| 动作 | ufw | firewalld |
-|---|---|---|
-| 放行端口 | `ufw allow 443/tcp` | `firewall-cmd --permanent --add-port=443/tcp` |
-| 放行服务 | `ufw allow 'Nginx Full'` | `firewall-cmd --permanent --add-service=https` |
-| 查看规则 | `ufw status verbose` | `firewall-cmd --list-all` |
-| 生效 | `ufw enable`（规则立即生效） | `firewall-cmd --reload`（`--permanent` 必须 reload） |
-
-**边界**：firewalld 的 zone 决定规则作用在哪个网卡与来源；默认 `public`。不加 `--permanent` 的规则只在当前运行时有效，reload 或重启就消失。
-
-> **面试**：常问「ufw 和 firewalld 是什么关系？能同时开两套吗？」答：都是管理前端，底层都落到 nftables/iptables，不要同时开。
+> **运维提示**：镜像站地址用占位符，不要硬编码某一家。公共镜像站会失效、会限速，也可能有同步延迟；生产环境优先用内网源或自建代理。
 
 ---
 
-## 四、冷门知识汇总
+## 四、系统服务与运行时管理
 
-| 知识点 | 为什么冷门 | 用到时的关键词 |
+### 4.1 systemd 单元与服务
+
+systemd 是两派共用的初始化系统，负责把系统从内核交接到用户态，并管理所有常驻服务。服务能否开机自启、崩溃后是否重启，都由单元文件决定。
+
+| 单元类型 | 作用 | 常见例子 |
 |---|---|---|
-| SUID / SGID / 粘滞位 | 日常配权限只用 rwx，特殊权限多见于安全审计场景 | 第十、十一位；`find / -perm -4000 -type f` |
-| swap 交换分区 | 现代云主机内存普遍较大；swap 还会掩盖内存泄漏，很多团队干脆不用 | `fallocate` + `mkswap` + `swapon` |
-| 云盘在线扩容 | 频率低，但云上一定会遇到一次 | `growpart` + `resize2fs` / `xfs_growfs` |
-| 系统更新后要不要重启 | 多数时候随手重启就行，很少需要精确判断 | `/var/run/reboot-required`；`needs-restarting -r` |
-| 磁盘安全清理 | 有 logrotate 和云监控后很少手工做 | `apt clean`、`journalctl --vacuum-time=7d` |
-| 备份关键配置 | 有配置管理和镜像后，极少手工备份 | `tar -czf /data/backup/etc-$(date +%F).tar.gz /etc/ssh /etc/fstab` |
-| 查看登录情况 | 出事查审计时才用 | `who` / `last` / `sudo lastb` / `sudo chage -l 用户` |
-| 手工编译安装 | 现代都用包管理或容器，编译多是踩坑 | `./configure --prefix=/usr/local/xxx` + `make && make install` |
-| rpm / dpkg 手动装包 | 只在离线环境或装厂商给的包时用 | `rpm -ivh x.rpm` / `dpkg -i x.deb` |
-| 拿 Linux 环境的其他方式 | 有云服务器后基本不用 | Vagrant 本地虚拟机；Windows 的 WSL2（默认不启用 systemd，网络仍受 Windows 防火墙约束） |
-| 服务开机自启与日志 | 日常由 systemd 统一管理，展开内容多 | `systemctl enable --now` / `journalctl -u` |
+| `.service` | 常驻服务 | `nginx.service` |
+| `.timer` | 定时任务 | `logrotate.timer` |
+| `.socket` | 按需激活 | `docker.socket` |
+| `.mount` | 挂载点 | `data.mount` |
+
+```bash
+# ========== 服务生命周期 ==========
+# 启动服务，仅当前生效
+sudo systemctl start nginx
+
+# 设置开机自启
+sudo systemctl enable nginx
+
+# 停止服务
+sudo systemctl stop nginx
+
+# 重启服务，会中断连接
+sudo systemctl restart nginx
+
+# 重载配置，尽量不中断连接
+sudo systemctl reload nginx
+
+# 查看是否 active，脚本里用返回值判断
+systemctl is-active nginx
+
+# 查看是否 enabled，确认重启后会不会回来
+systemctl is-enabled nginx
+
+# ========== 单元排查 ==========
+# 查看状态、主进程和最近日志
+systemctl status nginx --no-pager
+
+# 查看单元文件路径与覆盖关系
+systemctl cat nginx
+
+# 查看依赖关系，判断启动顺序
+systemctl list-dependencies nginx
+
+# 重新加载单元文件，改完 .service 后必做
+sudo systemctl daemon-reload
+```
+
+改完单元文件必须 `daemon-reload`，否则 systemd 仍用旧定义。`restart` 会断开现有连接，`reload` 是否生效取决于服务是否实现了重载信号，不能假设两者等价。
+
+### 4.2 时间同步
+
+时间错了会连锁出问题：HTTPS 证书校验失败、日志顺序错乱、cron 在错误的时间跑、分布式心跳误判。
+
+```bash
+# ========== 时区与 NTP ==========
+# 设置系统时区
+sudo timedatectl set-timezone Asia/Shanghai
+
+# 启用网络时间同步
+sudo timedatectl set-ntp true
+
+# 查看时区、同步状态和 NTP 服务
+timedatectl
+
+# 查看当前时间源与偏差
+chronyc sources -v
+
+# 立即校准一次
+sudo chronyc makestep
+```
+
+预期输出包含 `System clock synchronized: yes` 与 `NTP service: active`。
+
+| 检查项 | 正常值 | 异常处理 |
+|---|---|---|
+| 时区 | `Asia/Shanghai (CST, +0800)` | `set-timezone` 重设 |
+| 同步状态 | `synchronized: yes` | 检查 UDP 123 与上游 |
+| NTP 服务 | `active` | `systemctl status chronyd` |
+| 偏差 | 毫秒级 | `chronyc makestep` 强制校准 |
+
+> **注意**：时区对了不代表应用对了。JVM、MySQL、容器各有自己的默认时区，常见默认是 UTC，需要分别确认。
+
+### 4.3 日志管理
+
+systemd 用 journald 收集内核与服务日志，应用日志则通常落在 `/var/log`。两类日志的查询方式不同。
+
+```bash
+# ========== journald 查询 ==========
+# 查看指定服务的日志
+journalctl -u nginx --no-pager
+
+# 实时跟踪
+journalctl -u nginx -f
+
+# 按时间窗口过滤
+journalctl --since "2026-10-28 09:00" --until "2026-10-28 10:00"
+
+# 只看错误级别
+journalctl -p err -b
+
+# 查看本次启动的日志
+journalctl -b
+
+# 查看磁盘占用
+journalctl --disk-usage
+
+# 清理到只保留 500M
+sudo journalctl --vacuum-size=500M
+```
+
+| 命令 | 用途 | 易错点 |
+|---|---|---|
+| `journalctl -u` | 按单元过滤 | 单元名要写全 |
+| `journalctl -p err` | 按级别过滤 | 级别是上限不是精确匹配 |
+| `journalctl -b -1` | 看上次启动 | 需持久化存储才保留 |
+| `journalctl --vacuum-size` | 限制占用 | 会删历史日志 |
+
+应用日志要靠 logrotate 控制体积，否则单文件能长到几十 GB：
+
+```bash
+# ========== 日志轮转 ==========
+# 查看轮转配置
+cat /etc/logrotate.d/nginx
+
+# 手动触发一次轮转，测试配置
+sudo logrotate -f /etc/logrotate.d/nginx
+
+# 调试模式试运行，只打印动作不实际轮转
+sudo logrotate -d /etc/logrotate.d/nginx
+```
+
+### 4.4 计划任务
+
+cron 负责周期任务，systemd timer 负责需要依赖管理和精确控制的场景。两者都不读用户的 `~/.bashrc`。
+
+| 类型 | 配置位置 | 适用场景 |
+|---|---|---|
+| 用户 cron | `crontab -e` | 简单周期脚本 |
+| 系统 cron | `/etc/cron.d/` | 多用户统一管理 |
+| systemd timer | `/etc/systemd/system/*.timer` | 需要日志与依赖 |
+| 一次性任务 | `at` | 延迟执行 |
+
+```bash
+# ========== cron 操作 ==========
+# 编辑当前用户的任务
+crontab -e
+
+# 列出当前用户的任务
+crontab -l
+
+# 查看 cron 服务状态
+systemctl status crond --no-pager
+
+# 查看 cron 执行记录
+journalctl -u crond --since today --no-pager
+
+# ========== 手动验证脚本 ==========
+# 用空环境复现 cron 的运行条件
+env -i /bin/bash --noprofile --norc -c '/opt/scripts/backup.sh'
+```
+
+`env -i` 清空环境变量后能复现问题，说明是 PATH、LANG 或工作目录差异；不能复现再查脚本本身。cron 任务里一律用绝对路径，并在脚本开头显式设置 `PATH`。
+
+> **注意**：cron 服务名两派不同，RHEL 系为 `crond`，Ubuntu/Debian 为 `cron`。`systemctl status` 与 `journalctl -u` 都要换成实际名称，否则会得到 `Unit not found`。
+
+---
+
+## 五、存储与文件系统
+
+### 5.1 文件系统层级
+
+Linux 没有 C 盘 D 盘，所有东西挂在 `/` 下面。发行版按“会不会变”把这棵树分成两半，这个划分直接决定备份范围和排障入口。
+
+| 目录 | 放什么 | 运维意义 |
+|---|---|---|
+| `/etc` | 配置 | 服务行为不对先来这里 |
+| `/var/log` | 日志 | 服务为什么挂了先来这里 |
+| `/var/lib` | 运行状态与数据 | 备份必须覆盖 |
+| `/opt` | 第三方程序 | 自建应用放这里 |
+| `/tmp` | 临时文件 | 会被清理，不放数据 |
+| `/home`、`/root` | 用户家目录 | 密钥与脚本，权限要收紧 |
+
+所以备份不是打包 `/etc` 就完了：配置在 `/etc`，状态在 `/var/lib`，业务数据在数据盘，三处都要覆盖。只恢复配置，数据库仍然是空的。
+
+### 5.2 分区、格式化与挂载
+
+新数据盘从识别到可用分四步：分区、格式化、挂载、写 fstab。
+
+```bash
+# ========== 识别与分区 ==========
+# 确认目标盘容量、挂载点和现有分区
+lsblk
+
+# 查看内核识别到的磁盘
+sudo fdisk -l
+
+# 写入 GPT 分区表（会重写分区表）
+sudo parted -s /dev/vdb mklabel gpt
+
+# 创建一个占满全盘的分区
+sudo parted -s /dev/vdb mkpart data ext4 0% 100%
+
+# 让内核重新读取分区表
+sudo partprobe /dev/vdb
+
+# ========== 格式化与挂载 ==========
+# 格式化为 ext4（会清空分区）
+sudo mkfs.ext4 /dev/vdb1
+
+# 创建挂载点
+sudo mkdir -p /data
+
+# 临时挂载，验证可用
+sudo mount /dev/vdb1 /data
+
+# 查看挂载结果与容量
+df -h /data
+```
+
+> **运维红线**：`parted mklabel` 会重写分区表，`mkfs.ext4` 会清空整个分区。执行前必须用 `lsblk` 确认这块盘没有挂载点、没有数据，并且设备名没有写错。云主机的系统盘通常是 `/dev/vda`，误操作等于重装。
+
+写 fstab 要用 UUID，设备名会随插拔和云盘挂载顺序变化：
+
+```bash
+# ========== 持久化挂载 ==========
+# 读取分区 UUID
+sudo blkid -s UUID -o value /dev/vdb1
+
+# 追加 fstab 条目，nofail 保证盘缺失时系统仍能启动
+echo "UUID=$(sudo blkid -s UUID -o value /dev/vdb1)  /data  ext4  defaults,nofail  0  2" | sudo tee -a /etc/fstab
+
+# 先卸载再全量挂载，当场验证 fstab 是否正确
+sudo umount /data && sudo mount -a
+
+# 确认挂载点与容量
+df -h /data
+```
+
+`nofail` 的作用是这块盘挂不上时系统仍能启动，不会卡在紧急模式。改完 fstab 必须当场 `mount -a` 验证，不要等重启才发现写错。
+
+**逻辑卷管理。** 数据盘需要后续扩容时，用 LVM 比裸分区灵活：物理卷组成卷组，卷组再切逻辑卷，扩容时先扩逻辑卷再扩文件系统。
+
+```bash
+# ========== LVM 创建与扩容 ==========
+# 创建物理卷
+sudo pvcreate /dev/vdb1
+
+# 创建卷组，命名为 data_vg
+sudo vgcreate data_vg /dev/vdb1
+
+# 从卷组切出 50G 逻辑卷
+sudo lvcreate -L 50G -n data_lv data_vg
+
+# 格式化为 xfs（RHEL 系常用；若选 ext4 则改用 mkfs.ext4）
+sudo mkfs.xfs /dev/data_vg/data_lv
+
+# 扩容逻辑卷，增加 20G
+sudo lvextend -L +20G /dev/data_vg/data_lv
+
+# 同步扩容文件系统：ext4 使用 resize2fs，本例为 xfs 故跳过
+# sudo resize2fs /dev/data_vg/data_lv
+
+# 同步扩容文件系统：本例 xfs 使用 xfs_growfs
+sudo xfs_growfs /data
+
+# 查看卷组剩余空间，确认还能不能扩
+sudo vgs
+```
+
+> **运维红线**：`lvextend` 只扩逻辑卷，不扩文件系统，`df` 不会立刻变化；漏掉 `resize2fs` 或 `xfs_growfs` 会误判为扩容失败。缩容 ext4 需要先卸载，xfs 不支持缩容，生产上不要把它当常规操作。
+
+### 5.3 容量、inode 与日志轮转
+
+容量问题分三种：块用满、inode 用满、文件被删但空间没释放。三者的判断命令不同。
+
+| 指标 | 命令 | 判断依据 |
+|---|---|---|
+| 块容量 | `df -h` | `Use%` 接近 100% |
+| inode | `df -i` | `IUse%` 接近 100% |
+| 目录占用 | `du -h --max-depth=1 /var` | 定位增长目录 |
+| 已删未释放 | `lsof \| grep deleted` | 进程仍持有 fd |
+
+```bash
+# ========== 容量定位 ==========
+# 查看各分区块使用率
+df -h
+
+# 查看 inode 使用率，海量小文件先看这里
+df -i
+
+# 按目录统计占用并排序
+sudo du -h --max-depth=1 /var | sort -rh | head
+
+# 找出大于 1G 的文件
+sudo find /var -xdev -type f -size +1G -print
+
+# 查看被删除但仍被进程占用的文件
+sudo lsof | grep deleted
+
+# 清空正在被写入的日志，不改变 inode
+sudo truncate -s 0 /var/log/app.log
+```
+
+文件系统给每个文件分配块（内容占的空间）和 inode（权限、属主、时间、数据块位置），两者是独立配额。`df -h` 有空间也可能写不进去，`df -i` 到 100% 就是 inode 耗尽，常见于 session、缓存碎片、邮件队列这类海量小文件。
+
+`rm` 只删“文件名到 inode 的链接”，只要还有进程开着这个文件，块就不会回收，`df` 也不会降。此时重启进程或 `truncate -s 0` 才能释放。
+
+---
+
+## 六、网络与访问控制
+
+### 6.1 网络配置与监听地址
+
+连通性排障先分清三件事：网卡有没有地址、服务监听在哪个地址、包有没有被过滤。
+
+| 命令 | 用途 | 关键输出 |
+|---|---|---|
+| `ip addr` | 查看网卡与地址 | `inet` 行 |
+| `ip route` | 查看路由与默认网关 | `default via` |
+| `ss -tunlp` | 查看监听端口与进程 | `LISTEN` 行 |
+| `curl -I` | 验证应用层响应 | 状态码 |
+
+```bash
+# ========== 地址与路由 ==========
+# 查看所有网卡的 IP 地址
+ip addr show
+
+# 查看默认网关和路由表
+ip route show
+
+# 测试到网关的连通性
+ping -c 4 192.0.2.1
+
+# 测试 DNS 解析
+getent hosts example.com
+
+# ========== 监听与连接 ==========
+# 查看 TCP/UDP 监听端口及对应进程
+sudo ss -tunlp
+
+# 只看指定端口
+sudo ss -tunlp | grep 8080
+
+# 查看 IPv6 监听
+sudo ss -6 -tunlp
+
+# 本机验证服务响应
+curl -I http://127.0.0.1:8080
+```
+
+看到 `127.0.0.1:8080` 说明只有本机能访问，此时改防火墙没有意义，要改应用监听地址为 `0.0.0.0` 或具体网卡地址。只监听 IPv6 的服务，用 IPv4 访问同样不通。
+
+固定地址的配置方式两派不同。Ubuntu 用 netplan 生成后端配置，RHEL 系用 NetworkManager：
+
+```bash
+# ========== Ubuntu netplan 静态地址 ==========
+# 查看现有 netplan 配置
+ls /etc/netplan/
+
+# 备份后再编辑，YAML 缩进必须用空格
+sudo cp /etc/netplan/50-cloud-init.yaml /etc/netplan/50-cloud-init.yaml.bak
+
+# 应用配置，超时未确认会自动回滚
+sudo netplan try
+
+# 确认地址已生效
+ip addr show
+
+# ========== RHEL 系 nmcli 静态地址 ==========
+# 查看连接名称
+nmcli connection show
+
+# 修改 IPv4 地址与网关
+sudo nmcli connection modify eth0 ipv4.addresses 203.0.113.10/24
+sudo nmcli connection modify eth0 ipv4.gateway 203.0.113.1
+sudo nmcli connection modify eth0 ipv4.dns 223.5.5.5
+sudo nmcli connection modify eth0 ipv4.method manual
+
+# 重新激活连接
+sudo nmcli connection up eth0
+```
+
+> **注意**：改远程主机的网络配置前，先确认云控制台 VNC 可用，并用 `netplan try` 而不是直接 `apply`。配置一旦写错，SSH 会立即断开，且没有第二次机会修正。`nmcli` 示例中的 `eth0` 是连接名占位符，执行前用 `nmcli connection show` 换成实际名称。
+
+### 6.2 ufw 防火墙
+
+Ubuntu 默认安装 ufw 但未启用。启用前必须先放行 SSH，否则当前连接会在规则生效后被切断。
+
+```bash
+# ========== 规则配置 ==========
+# 默认拒绝入站，允许出站
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+# 先放行 SSH，顺序不能反
+sudo ufw allow 22/tcp
+
+# 放行 Web 端口
+sudo ufw allow 80,443/tcp
+
+# 启用防火墙
+sudo ufw enable
+
+# 查看带编号的规则列表
+sudo ufw status numbered verbose
+
+# 删除指定编号的规则
+sudo ufw delete 3
+```
+
+> **运维红线**：`ufw enable` 之前没有放行 22/tcp，当前 SSH 会立即失联。云主机只能通过 VNC 进去执行 `ufw allow 22/tcp`。规则顺序和启用顺序都不能颠倒。
+
+| 端口 | 用途 | 是否开放 |
+|---|---|---|
+| 22/tcp | SSH | 开，尽量限制来源 IP |
+| 80/443 | Web 与 HTTPS | 开 |
+| 3306/6379 | MySQL/Redis | 不开，只走内网 |
+| 8080 | 应用 | 不开，由 Nginx 反代 |
+
+> **注意**：改非标 SSH 端口只减少日志噪音，不算安全措施。云上还有一层安全组，和主机防火墙是两套机制，两边都要配且保持一致。
+
+### 6.3 firewalld 防火墙
+
+RHEL 系默认启用 firewalld，用 zone 管理规则。改规则用 `--permanent` 加 `--reload`，否则重启后丢失。
+
+```bash
+# ========== 状态与区域 ==========
+# 查看运行状态
+sudo firewall-cmd --state
+
+# 查看默认区域
+sudo firewall-cmd --get-default-zone
+
+# 查看当前区域的全部规则
+sudo firewall-cmd --list-all
+
+# ========== 放行端口 ==========
+# 永久放行 HTTP，当前不生效
+sudo firewall-cmd --permanent --add-service=http
+
+# 永久放行 HTTPS
+sudo firewall-cmd --permanent --add-service=https
+
+# 重载使永久规则生效
+sudo firewall-cmd --reload
+
+# 确认结果
+sudo firewall-cmd --list-services
+```
+
+> **注意**：不带 `--permanent` 的规则只存在于运行时，重启即消失；只带 `--permanent` 不 `--reload`，当前又不生效。两条一起用才是完整动作。
+
+### 6.4 SELinux 与 AppArmor
+
+强制访问控制是包管理之外最容易误判的一层。文件权限全对、服务仍然读不到，先看这里。
+
+| 维度 | SELinux（RHEL 系） | AppArmor（Ubuntu） |
+|---|---|---|
+| 默认状态 | enforcing | 按 profile 启用 |
+| 查看状态 | `getenforce` | `aa-status` |
+| 审计日志 | `ausearch -m avc` | `dmesg`、`journalctl` |
+| 调整方式 | 布尔值、上下文、策略 | profile 模式 |
+
+```bash
+# ========== SELinux 排查 ==========
+# 查看当前模式
+getenforce
+
+# 查看文件的安全上下文
+ls -Z /data/app
+
+# 查看最近的拒绝记录
+sudo ausearch -m avc -ts recent
+
+# 临时切换到宽容模式，仅用于确认根因
+sudo setenforce 0
+
+# 恢复强制模式
+sudo setenforce 1
+
+# 永久修改需编辑 /etc/selinux/config
+grep '^SELINUX=' /etc/selinux/config
+```
+
+> **安全警告**：`setenforce 0` 只能用于临时验证，不能作为长期方案。确认是 SELinux 拦截后，应修正文件上下文或加布尔值，而不是关闭整个机制。
+
+> **注意**：不要同时启用 ufw 和 firewalld。两者都是 nftables/iptables 的前端，规则会互相覆盖，排障会变成猜谜。
+
+---
+
+## 七、标准化交付与组合
+
+### 7.1 交付验收清单
+
+初始化做完不等于交付完成。下面八项必须逐条验证，其中涉及重启的两项要真重启一次。
+
+| 检查项 | 命令 | 通过标准 |
+|---|---|---|
+| 账号可用 | `id deploy` | 有 uid，附加组含 sudo/wheel |
+| 密钥登录 | `ssh -i key deploy@IP` | 不提示输密码 |
+| root 被禁 | `ssh root@IP` | `Permission denied` |
+| 时间正确 | `timedatectl` | CST、已同步、NTP active |
+| 数据盘 | `df -h /data` | 挂载点与容量正确 |
+| fstab | 重启后再 `df -h /data` | 仍然挂载 |
+| 防火墙 | `ufw status verbose` | active，仅 22/80/443 |
+| 服务自启 | 重启后 `systemctl is-active nginx` | `active` |
+
+第 6、8 项必须真重启。`mount -a` 只证明当前配置能挂，不证明开机时能挂；`enable` 只证明会被拉起，不证明拉起来能用。RHEL 系把防火墙检查换成 `firewall-cmd --list-all`。
+
+### 7.2 自动化与幂等
+
+机器超过三台就不要再手敲。把初始化步骤写成 cloud-init 或 Ansible，否则第 20 台一定和第 1 台不一样。
+
+| 操作 | 幂等风险 | 安全写法 |
+|---|---|---|
+| `useradd` | 第二次报用户已存在 | 先 `id` 判断再创建 |
+| `mkfs` | 每次都清空数据 | 先 `blkid` 判断是否已格式化 |
+| `>> fstab` | 重复追加导致启动失败 | 先 `grep` 再写，或用 UUID 去重 |
+| `sed -i` | 重复替换可能叠加 | 用精确匹配并保留 `.bak` |
+
+```bash
+# ========== 幂等写法示例 ==========
+# 用户不存在才创建
+id deploy >/dev/null 2>&1 || sudo useradd -m -s /bin/bash deploy
+
+# 分区没有文件系统才格式化
+sudo blkid /dev/vdb1 >/dev/null 2>&1 || sudo mkfs.ext4 /dev/vdb1
+
+# fstab 没有该 UUID 才追加
+grep -q "$(sudo blkid -s UUID -o value /dev/vdb1)" /etc/fstab || \
+  echo "UUID=$(sudo blkid -s UUID -o value /dev/vdb1)  /data  ext4  defaults,nofail  0  2" | sudo tee -a /etc/fstab
+```
+
+> **运维红线**：`blkid ... || mkfs` 只在确认设备是空盘时成立。`blkid` 无输出也可能是分区表尚未刷新或设备名写错，误判会直接清空数据。格式化前先 `lsblk` 确认设备、容量和挂载点，必要时人工复核，不要把这行直接放进无人值守脚本。
+
+### 7.3 补丁与重启判断
+
+补丁装完不等于生效。内核、glibc、systemd 这类基础组件升级后，运行中的进程仍在使用旧版本的内存映射。
+
+| 升级内容 | 判断 | 依据 |
+|---|---|---|
+| 内核、glibc、systemd | 必须重启 | 运行时仍是旧版本 |
+| 普通应用包 | 重启对应服务 | 进程重新加载 |
+| 拿不准 | 查重启标记 | 见下方命令 |
+
+```bash
+# ========== 重启判断 ==========
+# Ubuntu 查看是否需要重启
+ls -l /var/run/reboot-required
+
+# RHEL 系检查是否需要重启，需装 dnf-plugins-core
+sudo dnf needs-restarting -r
+
+# 查看当前运行内核与已安装内核
+uname -r
+rpm -qa kernel | sort
+
+# 重启前确认关键服务是 enabled（RHEL 系把 ssh 换成 sshd）
+systemctl is-enabled nginx ssh
+```
+
+内核打了补丁不重启，漏洞仍然在内存里，这是“补丁装了但没生效”的典型来源。但重启前先确认业务是 `enabled`，否则重启后不会自己回来。
+
+---
+
+## 八、常见排障
+
+| 现象 | 最可能原因 | 处理 |
+|---|---|---|
+| `apt install` 报 `Unable to locate package` | 索引过期或包名错 | `apt update` 后 `apt policy` 看 Candidate |
+| `usermod -G` 后 sudo 失效 | 少写 `-a`，附加组被替换 | 用其他 sudo 账号补回组 |
+| 能 `ls` 出文件名但读不了 | 目录缺 `x` 权限 | `namei -l /path/file` 逐级看 |
+| `df -h` 有空间却写不进 | inode 耗尽 | `df -i` 看 IUse% |
+| 删大文件空间不降 | 进程仍持有 fd | `lsof \| grep deleted` 后重启进程 |
+| 改完 sshd 重连不上 | 配置错误或 22 未放行 | VNC 删除 drop-in 后 reload |
+| `ufw enable` 后失联 | 启用前没放行 22 | VNC 内 `ufw allow 22/tcp` |
+| 重启卡在 emergency mode | fstab 的 UUID 不存在 | 救援模式注释该行并加 nofail |
+| 端口放行后外部仍不通 | 安全组未放或只监听回环 | `ss -tunlp` 看监听地址 |
+| RHEL 上权限正确仍读不了 | SELinux 拦截 | `getenforce`、`ausearch -m avc` |
+
+“连不上”按层排除，不要一上来就抓包：
+
+```mermaid
+flowchart TD
+    A["外部连接失败"] --> B{"云安全组放行"}
+    B -->|"未放行"| B1["修改安全组<br/>流量未到网卡即被丢弃"]
+    B -->|"已放行"| C{"本机回环可通"}
+    C -->|"不通"| C1["服务未启动<br/>或监听在别的地址"]
+    C -->|"可通"| D{"外部访问可通"}
+    D -->|"不通"| D1["主机防火墙<br/>ufw / firewalld"]
+    D -->|"可通"| E["应用层<br/>路径 · 证书 · 上游"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A client
+    class B,C,D engine
+    class B1,C1,D1,E image
+```
+
+排障顺序固定为：**安全组 → 主机防火墙 → 监听地址 → 进程 → 权限与磁盘**。前一层没排除，查后一层都是白费。
+
+两个高频误判：`Connection refused` 是端口没人监听或被 REJECT，`连接超时` 是包被丢了，后者才优先怀疑安全组和 DROP 规则。权限判定是“属主 → 属组 → other，命中就停”，文件属主是当前用户、属主位是 `r--`，即使组权限给了 `rw`，也写不进去。
+
+> **运维提示**：排障记录要留下命令和输出。同一现象第二次出现时，能直接对比两次的 `ss`、`df`、`journalctl` 结果，比重新猜一遍快得多。

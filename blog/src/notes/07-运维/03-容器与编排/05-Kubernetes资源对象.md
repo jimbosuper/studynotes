@@ -1,936 +1,1237 @@
 # Kubernetes 资源对象
 
-## 一、工程案例：把「Spring Boot + MySQL + Ingress + HPA」部署成可运维的一套
+---
 
-**场景**：一套 Spring Boot 后端 + MySQL，原来在一台机器上用 `docker run` 跑。现在要迁到 K8s，并且满足六条硬要求：MySQL 数据在 Pod 重建后不能丢；密码不能进 YAML；MySQL 不对外；应用两个副本，滚动更新期间不中断；域名 + HTTPS 访问；流量上来能自动扩容。
+## 一、Kubernetes 资源对象是什么
 
-**为什么必须用不同的对象**：这六条需求分别命中六类对象。用 Deployment 跑 MySQL 会丢"稳定身份 + 稳定存储"，用 NodePort 做对外会失掉七层路由，用明文 env 会把密码写进 `kubectl describe`。选错对象不是"能跑但不好"，是"一到故障就救不回来"。
+### 1.1 核心概念
 
-| 需求 | 对象 | 不用的后果 |
+Kubernetes 里的“资源对象”是 API Server 中持久化的一条记录，用 YAML 或 JSON 描述，由控制器负责把它变成现实。对象不是配置文件，而是集群状态的一部分：提交之后它一直存在，直到被删除；它的 `spec` 是期望值，`status` 是控制器回填的实际情况，两者不一致就会触发调谐。
+
+这个模型解释了运维中最常见的困惑。改镜像不生效，是因为改的是 Pod 模板而不是已存在的 Pod；删了 Deployment 但 Pod 还在，是因为级联删除还没走完或对象带了 finalizer；副本数明明是 3 却只跑了 2 个，是因为 `status` 里记录了调度失败的原因。读对象时先分清 `spec` 与 `status`，一半的问题当场就能定位。
+
+| 概念 | 含义 | 观察方式 |
 |---|---|---|
-| 多副本、自愈、滚动更新 | Deployment | 手工管 Pod，删了不会回来 |
-| 稳定名字 + 独立存储 | StatefulSet + volumeClaimTemplates | Pod 重建后挂到别人的盘 |
-| 密码不入 YAML | Secret | 密码进 Git、进 CI 日志 |
-| 集群内稳定入口 | Headless Service / ClusterIP | 应用写死 Pod IP，重建即断 |
-| 域名 + HTTPS | Ingress + TLS Secret | 每个服务开一个 NodePort |
-| 自动扩容 | HPA + requests | 只能手工 scale |
+| `spec` | 期望状态，由使用者写入 | `kubectl get -o yaml` 上半部分 |
+| `status` | 实际状态，由控制器写入 | 同上的下半部分 |
+| 控制器 | 监听对象并调谐的进程 | 内置或 Operator 提供 |
+| 对象引用 | 通过名字、标签或 UID 建立关联 | `ownerReferences`、selector |
+| 终态 | 对象被删除后的清理结果 | `finalizers` 清空 |
 
-### 1.1 主线（按顺序 apply）
+对象分两类。**工作负载类**描述“要跑什么”，如 Deployment、StatefulSet、Job；**支撑类**描述“怎么跑”，如 ConfigMap、Secret、Service、PVC、NetworkPolicy、PDB。前者决定进程，后者决定进程所处的环境。只写工作负载不写支撑对象，服务能起来但不具备可运维性。
+
+### 1.2 与相邻技术的关系
+
+资源对象是 K8s 的扩展点。内置对象覆盖通用场景，CRD（Custom Resource Definition）允许把数据库、消息队列、证书等外部资源也建模成对象，Operator 则是“CRD + 控制器”的组合。理解内置对象的字段语义，是读懂任何 Operator 的前提，因为它们的写法遵循同一套约定。
+
+对象与模板工具的关系容易被夸大。Helm 负责参数化和打包，Kustomize 负责叠加与补丁，二者最终都产出对象清单交给 apiserver。它们不改变对象的运行语义，只改变清单的生成方式。排障时应当先看集群里真实存在的对象，而不是看仓库里的模板。
+
+| 技术 | 作用 | 与对象的关系 |
+|---|---|---|
+| kubectl | 提交与查询对象 | 直接调用 API |
+| Helm | 模板渲染与版本管理 | 生成对象清单 |
+| Kustomize | 环境叠加与字段补丁 | 生成对象清单 |
+| Operator | 用控制器管理复杂对象 | 监听 CRD 并创建内置对象 |
+| CRD | 扩展 API 类型 | 与内置对象同等的存储与权限模型 |
+
+与 04 篇搭好的集群配合时，对象是唯一需要关心的层面。节点、证书、CNI 属于集群面，日常变更几乎都发生在对象面。两者的分界线是：能用 `kubectl apply` 解决的属于对象面，需要登录节点改文件的属于集群面。
+
+### 1.3 架构组成
+
+```mermaid
+flowchart TD
+    D["Deployment"] -->|"创建并接管"| RS["ReplicaSet"]
+    RS -->|"创建并接管"| P["Pod"]
+    STS["StatefulSet"] -->|"固定序号创建"| P2["Pod pg-0"]
+    P2 -->|"挂载"| PVC["PVC data-pg-0"]
+    PVC -->|"绑定"| PV["PV / StorageClass"]
+    CJ["CronJob"] -->|"按计划创建"| J["Job"]
+    J -->|"运行到完成"| P3["Pod"]
+    HPA["HPA"] -.->|"调整副本数"| D
+    PDB["PDB"] -.->|"限制自愿驱逐"| P
+    NP["NetworkPolicy"] -.->|"按标签选 Pod"| P
+    CM["ConfigMap / Secret"] -.->|"注入配置"| P
+    SVC["Service"] -->|"EndpointSlice"| P
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class D,STS,CJ,HPA,PDB,NP,SVC client
+    class RS,J,P,P2,P3 engine
+    class PVC,PV,CM image
+```
+
+图里三种连线对应三种关联机制。实线是所有权，删除上层会级联删除下层；虚线是选择关系，靠标签匹配，标签一改连线就断；挂载关系则要求对象必须存在于同一命名空间。
+
+| 关联机制 | 字段 | 断开的后果 |
+|---|---|---|
+| 所有权 | `ownerReferences` | 上层删除后留下孤儿对象 |
+| 标签选择 | `selector.matchLabels` | Service 无后端、PDB 失去保护对象 |
+| 引用 | `configMapRef`、`secretKeyRef`、`claimName` | Pod 卡在创建阶段，事件报找不到对象 |
+
+命名空间是这些关系的边界。Service 只能选同命名空间的 Pod，Pod 只能引用同命名空间的 ConfigMap 和 Secret，PVC 也只能绑定同命名空间的 PV 申请。跨命名空间只能通过 ExternalName Service 或显式网关，这是有意为之的隔离。
+
+---
+
+## 二、使用前提与环境准备
+
+### 2.1 集群与工具版本
+
+本篇假定已有一套可用的集群，至少一个控制平面加两个工作节点。所有对象操作都在控制平面执行，`kubectl` 的版本要与 apiserver 相差不超过一个小版本，否则部分字段会被静默丢弃。
 
 ```bash
-kubectl create namespace prod-app
-kubectl -n prod-app create secret generic mysql-secret \
-  --from-literal=root-password='Root@2026#Strong' \
-  --from-literal=app-password='AppUser@2026'
+# ========== 确认集群可用 ==========
+# 节点应全部 Ready，否则后续 Pod 调度会失败
+kubectl get nodes -o wide
+# 确认 apiserver 地址与 DNS 入口
+kubectl cluster-info
+
+# ========== 确认客户端版本 ==========
+# 与 apiserver 相差一个小版本以内为佳
+kubectl version
+
+# ========== 确认默认命名空间 ==========
+# 当前上下文决定后续命令落在哪个命名空间
+kubectl config view --minify -o jsonpath='{..namespace}'
+# 确认上下文名称，多集群环境尤其重要
+kubectl config current-context
 ```
 
-```yaml
-# 01-config.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-config
-  namespace: prod-app
-data:
-  DB_HOST: "mysql-headless"
-  DB_PORT: "3306"
-  DB_NAME: "appdb"
-  LOG_LEVEL: "info"
-  TZ: "Asia/Shanghai"
+### 2.2 命名空间与上下文
+
+```bash
+# ========== 创建独立命名空间 ==========
+# 把演示对象与系统组件隔离，删除时也方便整体清理
+kubectl create namespace demo
+
+# ========== 切换默认命名空间 ==========
+# 之后不必每条命令都带 -n
+kubectl config set-context --current --namespace=demo
+
+# ========== 查看命名空间资源 ==========
+kubectl get all -n demo
 ```
 
-```yaml
-# 02-mysql.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: mysql-headless
-  namespace: prod-app
-spec:
-  clusterIP: None
-  selector:
-    app: mysql
-  ports:
-    - name: mysql
-      port: 3306
-      targetPort: 3306
+| 命名空间 | 用途 | 说明 |
+|---|---|---|
+| `default` | 未指定时的落点 | 生产不建议直接使用 |
+| `kube-system` | 控制平面与核心插件 | 不要在此创建业务对象 |
+| `kube-public` | 公开可读的集群信息 | 一般只读 |
+| `demo` | 本篇演示 | 可整体删除 |
+
+> **注意**：`kubectl delete namespace` 会级联删除命名空间内的全部对象，包括 PVC 和 Secret。执行前用 `kubectl get all,pvc,secret -n <命名空间>` 核对，不要把它当成清理目录。
+
+### 2.3 必备的集群插件
+
+两个对象依赖集群级插件才能完整工作：HPA 依赖 metrics-server 提供指标，PVC 依赖 StorageClass 提供动态供给。裸 kubeadm 集群默认两者都没有。
+
+```bash
+# ========== 检查指标链路 ==========
+# 没有输出或报错说明 metrics-server 未安装
+kubectl top nodes
+# 确认 metrics API 已注册，Available 应为 True
+kubectl get apiservice v1beta1.metrics.k8s.io
+
+# ========== 检查存储供给 ==========
+# 没有 (default) 标记时，PVC 必须显式指定 storageClassName
+kubectl get storageclass
+
+# ========== 检查 CRD 与 API 版本 ==========
+# 不同 K8s 版本的对象 API 组不同，写 YAML 前先确认
+kubectl api-resources | grep -E 'deployments|statefulsets|networkpolicies'
+```
+
+| 能力 | 依赖组件 | 缺失时的现象 |
+|---|---|---|
+| 资源指标 | metrics-server | `kubectl top` 报错，HPA 显示 `<unknown>` |
+| 动态存储 | CSI 驱动与 StorageClass | PVC 一直 Pending |
+| 网络策略 | 支持策略的 CNI | 策略创建成功但不生效 |
+| 入口访问 | Ingress Controller | Ingress 对象存在但无地址 |
+
 ---
-apiVersion: apps/v1
-kind: StatefulSet
+
+## 三、对象模型与元数据
+
+### 3.1 通用字段
+
+每个对象都有相同的骨架：`apiVersion`、`kind`、`metadata`、`spec`，部分对象还有 `status`。`apiVersion` 决定字段结构，同一 kind 在不同 API 组里的字段可能完全不同，抄 YAML 时最先要核对的就是这一行。
+
+```yaml
+# 一个最小对象的完整骨架，字段含义见下方表格
+apiVersion: apps/v1                 # API 组与版本，决定 spec 的字段结构
+kind: Deployment                    # 资源类型，大小写敏感
 metadata:
-  name: mysql
-  namespace: prod-app
+  name: web                         # 同命名空间内唯一，创建后不可改
+  namespace: demo                   # 作用域，省略则用当前上下文
+  labels:
+    app: web                        # 供 selector 匹配的键值对
+  annotations:
+    owner: platform-team            # 供工具读取的说明性元数据
 spec:
-  serviceName: mysql-headless
-  replicas: 1
+  replicas: 3                       # 期望副本数
   selector:
     matchLabels:
-      app: mysql
+      app: web                      # 与模板标签必须一致
   template:
     metadata:
       labels:
-        app: mysql
+        app: web
     spec:
-      terminationGracePeriodSeconds: 30
       containers:
-        - name: mysql
-          image: mysql:8.0
-          args:
-            - --character-set-server=utf8mb4
-            - --collation-server=utf8mb4_unicode_ci
+        - name: nginx
+          image: nginx:1.30-alpine
+```
+
+| 字段 | 作用 | 改动后的后果 |
+|---|---|---|
+| `metadata.name` | 身份标识 | 不可修改，只能重建 |
+| `metadata.namespace` | 作用域 | 不可修改，跨命名空间同名是不同对象 |
+| `labels` | 被选择器匹配 | 改 Pod 标签可能让 Service 立刻失去后端 |
+| `annotations` | 工具读取的元数据 | 不影响调度，但可能触发控制器行为 |
+| `resourceVersion` | 乐观并发控制 | 基于旧版本更新会冲突 |
+
+`kubectl explain` 是最可靠的字段文档，比搜索博客准确，也总能匹配当前集群版本：
+
+```bash
+# ========== 查字段文档 ==========
+# 逐层展开，输出里带字段类型与是否必填
+kubectl explain deployment.spec.strategy
+# 复杂字段建议直接看内嵌结构，避免拼错层级
+kubectl explain pod.spec.topologySpreadConstraints
+
+# ========== 查资源支持的动词 ==========
+# 某些对象不支持 deletecollection，脚本里要区别处理
+kubectl api-resources --api-group=apps -o wide
+```
+
+### 3.2 标签、选择器与注解
+
+标签是集群里的“索引”，选择器是查询语句。二者分开设计，是因为标签由对象持有者定义，选择器由消费者定义。`matchLabels` 是精确匹配，`matchExpressions` 支持 In、NotIn、Exists、DoesNotExist 四种运算符。
+
+```yaml
+# 选择器写法：matchLabels 与 matchExpressions 可以并存，取交集
+selector:
+  matchLabels:
+    app: web
+  matchExpressions:
+    - key: tier
+      operator: In
+      values: ["frontend", "edge"]
+```
+
+| 用法 | 写法 | 典型场景 |
+|---|---|---|
+| 精确匹配 | `matchLabels` | Service 选 Pod、Deployment 管 ReplicaSet |
+| 集合匹配 | `matchExpressions` + `In` | 一次选中多个环境 |
+| 存在性 | `operator: Exists` | 排除带特定标记的 Pod |
+| 注解 | `annotations` | 探针参数、Ingress 重写规则、变更原因 |
+
+> **注意**：Deployment 的 `spec.selector` 创建后不可修改。需要换选择器只能新建对象再迁移流量，改标签绕过去会让旧 ReplicaSet 失去管束，留下孤儿 Pod。
+
+注解与标签的区别在于是否参与选择。注解可以放较长的文本、JSON 片段、版本号，不会影响任何选择器，因此适合记录变更原因、告警规则、证书签发者这类信息。
+
+### 3.3 所有权、finalizer 与删除语义
+
+`ownerReferences` 记录“谁创建了我”，级联删除靠它实现。默认的删除传播策略是 Background：先删上层，再异步清理下层；`Foreground` 会等下层全部删除后才移除上层；`Orphan` 则保留下层并清除引用。
+
+`finalizers` 是删除路上的闸门。对象被标记删除后，apiserver 只设置 `deletionTimestamp`，真正消失要等所有 finalizer 被移除。PV、LoadBalancer Service 这类持有外部资源的对象常用它，确保云盘和负载均衡先被回收。
+
+| 机制 | 触发条件 | 卡住时的表现 |
+|---|---|---|
+| 级联删除 | 删除带 ownerReferences 的上层 | 下层对象残留 |
+| finalizer | 对象带 finalizers 列表 | 长时间 `Terminating` |
+| 优雅退出 | Pod 删除 | 进程收到 SIGTERM 后延迟退出 |
+| 强制删除 | `--force --grace-period=0` | 记录消失但容器可能仍在 |
+
+```bash
+# ========== 观察删除过程 ==========
+# 带 finalizer 的对象会停在 Terminating
+kubectl get pod -w
+# 打印 finalizers 列表，非空即表示有控制器未完成清理
+kubectl get pod web-6f9c8d7b5-2xj9k -o jsonpath='{.metadata.finalizers}'
+
+# ========== 查看对象的归属链 ==========
+# 输出应为 ReplicaSet，再往上才是 Deployment
+kubectl get pod web-6f9c8d7b5-2xj9k -o jsonpath='{.metadata.ownerReferences[*].kind}'
+```
+
+> **运维红线**：`kubectl delete pod --force --grace-period=0` 只从 API 抹掉记录，不保证容器进程已停。节点失联时可以用，但可能留下孤儿容器和已挂载的卷，确认存储与端口状态后再执行。
+
+### 3.4 声明式管理与常用命令
+
+生产环境统一用 `apply`，因为它记录最后一次应用的配置，能算出三路合并的补丁。`create` 遇到已存在对象直接报错，`replace` 会丢弃未提交的字段，`edit` 依赖人工操作且不留审计。
+
+```bash
+# ========== 提交与预览 ==========
+# --dry-run=server 会走完整的准入校验，比 client 端更接近真实结果
+kubectl apply -f web.yaml --dry-run=server
+# 正式提交，返回 created 或 configured
+kubectl apply -f web.yaml
+# 对比集群现状与文件差异，确认改动范围
+kubectl diff -f web.yaml
+
+# ========== 查询 ==========
+# 一次看三层对象，确认副本与 Pod 的归属
+kubectl get deploy,rs,pod -o wide
+# 按标签筛选并显示标签，排查选择器问题
+kubectl get pod -l app=web --show-labels
+# 导出完整对象，包含 status 与事件之外的全部字段
+kubectl get deploy web -o yaml
+
+# ========== 变更与回滚 ==========
+# 阻塞等待本次滚动完成，脚本里必须加
+kubectl rollout status deployment/web
+# 列出历史版本，对应 revision 号
+kubectl rollout history deployment/web
+# 回滚到指定版本，省略则回上一个
+kubectl rollout undo deployment/web --to-revision=2
+
+# ========== 删除 ==========
+# 按清单删除，与 apply 对称，避免漏删附属对象
+kubectl delete -f web.yaml
+```
+
+| 命令 | 语义 | 适用 |
+|---|---|---|
+| `apply` | 声明式，计算补丁 | 日常变更 |
+| `create` | 只创建，已存在则失败 | 初始化、一次性对象 |
+| `replace` | 全量替换 | 明确要覆盖全部字段时 |
+| `patch` | 局部修改 | 临时调整、脚本操作 |
+| `edit` | 交互式修改 | 排障时快速验证 |
+
+---
+
+## 四、工作负载控制器
+
+### 4.1 控制器与副本保证
+
+控制器的工作方式是“比较、行动、再比较”。以 Deployment 为例，它不直接创建 Pod，而是创建 ReplicaSet，由 ReplicaSet 保证副本数。多一层间接是为了滚动更新：新版本对应新 ReplicaSet，旧版本保留下来，出问题可以回滚到旧 ReplicaSet 的模板。
+
+| 对象 | 保证什么 | 适用 | 不适合 |
+|---|---|---|---|
+| Deployment | 副本数、滚动更新、回滚 | 无状态 API、Web、消费者 | 需要固定身份或独立磁盘 |
+| StatefulSet | 固定序号、稳定 DNS、每 Pod 的 PVC | 数据库、Kafka、ZooKeeper | 无状态服务，或指望它做数据复制 |
+| DaemonSet | 每个节点一个 Pod | 日志、监控、CNI、节点代理 | 副本数需要手工控制的业务 |
+| Job | 至少成功一次 | 迁移、批处理、一次性修复 | 长期运行的服务 |
+| CronJob | 按 cron 创建 Job | 备份、清理、报表 | 秒级精度或严格一次 |
+
+选型顺序可以固定成三个问题：需要稳定身份和独立存储吗？需要每节点一个吗？是一次性任务吗？三者都不是，才用 Deployment。
+
+### 4.2 Deployment 与滚动更新
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: demo
+spec:
+  replicas: 3                        # 期望副本数，HPA 会改写它
+  revisionHistoryLimit: 5            # 保留的历史 ReplicaSet 数，便于回滚
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1                    # 更新时最多超出期望副本的 Pod 数
+      maxUnavailable: 0              # 更新期间可用副本不得低于期望值
+  selector:
+    matchLabels:
+      app: web                       # 创建后不可修改
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: nginx
+          image: nginx:1.30-alpine   # 固定版本，避免 latest 带来的不确定性
           ports:
-            - name: mysql
-              containerPort: 3306
+            - containerPort: 80
+          resources:
+            requests:                # 调度依据，也是 HPA 利用率的分母
+              cpu: 100m
+              memory: 128Mi
+            limits:                  # 超过内存上限会被 OOMKilled
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:            # 未就绪的 Pod 不会进入 EndpointSlice
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:             # 探针失败会重启容器，不要设得过于激进
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+```
+
+`maxUnavailable: 0` 配合 `maxSurge: 1` 表示更新时先起新 Pod、就绪后再停旧 Pod，任何时刻可用副本都不减少。代价是需要额外一份资源，并且更新期间节点上会短暂出现 4 个副本。
+
+> **注意**：`readinessProbe` 缺失时，Pod 一进入 Running 就被加入端点，应用尚未初始化完成的请求会直接失败。启动慢的应用必须配就绪探针，而不是把 `initialDelaySeconds` 一味调大。
+
+### 4.3 StatefulSet 的身份语义
+
+StatefulSet 与 Deployment 的差别不在副本数，而在身份。Pod 名字固定为 `名字-序号`，重建后名字不变，DNS 不变，绑定的 PVC 也不变。这三条保证让它能承载有状态服务。
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pg
+  namespace: demo
+spec:
+  serviceName: pg-headless           # 必须指向一个无头 Service
+  replicas: 1
+  podManagementPolicy: OrderedReady  # 按序号逐个启动，前一个就绪才起下一个
+  selector:
+    matchLabels:
+      app: pg
+  template:
+    metadata:
+      labels:
+        app: pg
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18-alpine
           env:
-            - name: MYSQL_ROOT_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: mysql-secret
-                  key: root-password
-            - name: MYSQL_DATABASE
-              value: appdb
-            - name: MYSQL_USER
-              value: appuser
-            - name: MYSQL_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mysql-secret
-                  key: app-password
-            - name: TZ
-              value: Asia/Shanghai
+                  name: pg-secret
+                  key: password
+          ports:
+            - containerPort: 5432
           volumeMounts:
             - name: data
-              mountPath: /var/lib/mysql
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-          readinessProbe:
-            exec:
-              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
-            initialDelaySeconds: 15
-            periodSeconds: 10
-            failureThreshold: 6
-          livenessProbe:
-            exec:
-              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
-            initialDelaySeconds: 60
-            periodSeconds: 20
-            failureThreshold: 5
-  volumeClaimTemplates:
+              mountPath: /var/lib/postgresql   # PostgreSQL 18 起的卷挂载路径
+  volumeClaimTemplates:              # 每个 Pod 一个独立 PVC
     - metadata:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 5Gi
+            storage: 10Gi
 ```
 
+```bash
+# ========== 创建并观察 ==========
+# PVC 名字由模板名与 Pod 名拼接而成
+kubectl create secret generic pg-secret --from-literal=password='<password>'
+# 先建无头 Service 再建 StatefulSet，顺序反了 Pod 无法获得稳定 DNS
+kubectl apply -f pg.yaml
+# 同时看 Pod 与 PVC，确认已绑定
+kubectl get pod,pvc
+# 打印 Pod IP，用于对比重建前后的地址变化
+kubectl get pod pg-0 -o jsonpath='{.status.podIP}'
+
+# ========== 验证数据留存 ==========
+# 删除 Pod 后 StatefulSet 会用同一个 PVC 重建
+kubectl delete pod pg-0
+# 观察重建过程，NAME 与 PVC 引用应保持不变
+kubectl get pod,pvc -w
+```
+
+预期 PVC 名为 `data-pg-0`，状态 `Bound`；Pod 名固定 `pg-0`，DNS 为 `pg-0.pg-headless.demo.svc.cluster.local`。删掉 `pg-0` 后重建，数据仍在。
+
+但这**不代表高可用**。把 `replicas` 改成 2，得到的是两个互相独立的 PostgreSQL，不是一个主从集群。复制、选主、备份仍要数据库自身或 Operator 解决。
+
+| 字段 | 默认 | 作用 |
+|---|---|---|
+| `podManagementPolicy` | `OrderedReady` | 按序号启动与停止；`Parallel` 适合无依赖副本 |
+| `updateStrategy` | `RollingUpdate` | 从最大序号往回更新；`OnDelete` 需手工删 Pod |
+| `persistentVolumeClaimRetentionPolicy` | `Retain` / `Retain` | 控制删除与缩容时是否连带删 PVC |
+
+`kubectl delete sts pg` 默认不会删 PVC，这是保护数据的默认值，也意味着“删了 StatefulSet 数据还在”。要彻底清理必须单独删 PVC。
+
+> **运维红线**：删除 PVC 会触发底层存储回收，`reclaimPolicy: Delete` 时数据立即不可恢复。删除前确认备份已完成，并核对 PV 的回收策略。
+
+### 4.4 DaemonSet 与批处理对象
+
+DaemonSet 保证每个符合条件的节点上跑一个 Pod，节点加入自动创建，节点移除自动清理。日志采集、监控代理、CNI 本身都用它。`nodeSelector` 和污点容忍决定它覆盖哪些节点，控制平面通常只允许特定的 DaemonSet 进入。
+
 ```yaml
-# 03-app.yaml
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
-  name: springboot-app
-  namespace: prod-app
+  name: node-logger
+  namespace: demo
 spec:
-  replicas: 2
-  revisionHistoryLimit: 5
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   selector:
     matchLabels:
-      app: springboot
+      app: node-logger
   template:
     metadata:
       labels:
-        app: springboot
+        app: node-logger
     spec:
+      tolerations:                   # 允许进入带污点的节点
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       containers:
-        - name: app
-          image: registry.example.com/myteam/springboot-app:v1.0.0
-          ports:
-            - name: http
-              containerPort: 8080
-          envFrom:
-            - configMapRef:
-                name: app-config
-          env:
-            # Kubernetes 会先展开 $(VAR)，这里引用的是上面 ConfigMap 注入的变量
-            - name: SPRING_DATASOURCE_URL
-              value: "jdbc:mysql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
-            - name: SPRING_DATASOURCE_USERNAME
-              value: appuser
-            - name: SPRING_DATASOURCE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mysql-secret
-                  key: app-password
-            - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
-              value: "true"
+        - name: logger
+          image: busybox:1.37
+          command: ["sh", "-c", "tail -f /var/log/syslog"]
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-          startupProbe:
-            httpGet:
-              path: /actuator/health/liveness
-              port: http
-            periodSeconds: 5
-            failureThreshold: 30
-          readinessProbe:
-            httpGet:
-              path: /actuator/health/readiness
-              port: http
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /actuator/health/liveness
-              port: http
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 3
----
-apiVersion: v1
-kind: Service
+              cpu: 20m
+              memory: 32Mi
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log         # 读取宿主机日志，属于特权面
+```
+
+Job 保证“至少成功一次”，`backoffLimit` 控制重试次数，`restartPolicy` 只能是 `Never` 或 `OnFailure`，`ttlSecondsAfterFinished` 让完成的 Job 自动清理。CronJob 在其上加了调度，真正的难点是失败与并发策略。
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
 metadata:
-  name: springboot-svc
-  namespace: prod-app
+  name: pg-backup
+  namespace: demo
 spec:
-  selector:
-    app: springboot
-  ports:
-    - name: http
-      port: 80
-      targetPort: http
+  schedule: "0 3 * * *"              # 每天 03:00，按控制平面时区解释
+  concurrencyPolicy: Forbid          # 上一次没结束就不再起新的
+  startingDeadlineSeconds: 600       # 错过调度后最多补跑 10 分钟
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2                # 失败重试 2 次后标记 Job 失败
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: dump
+              image: postgres:18-alpine
+              envFrom:
+                - secretRef:
+                    name: pg-backup-secret
+              command:
+                - sh
+                - -c
+                - pg_dump -h pg-0.pg-headless -U app app > /backup/app.sql
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: backup-pvc
+```
+
+`concurrencyPolicy: Forbid` 防止上一次备份没跑完又起一个；`startingDeadlineSeconds` 控制错过调度后还等多久。CronJob 不保证“错过的时间一定补跑”，集群停机期间错过的调度恢复后不一定补，对账类任务要能自己判断上次执行到哪。
+
+---
+
+## 五、配置与密钥注入
+
+### 5.1 ConfigMap
+
+ConfigMap 保存非敏感的键值对，可以整份文件、单个键值或整个目录导入。它的价值在于把配置从镜像里剥离，同一镜像在不同环境复用，改配置不必重新构建。
+
+```bash
+# ========== 从文件创建 ==========
+# 文件名成为键名，适合挂载成配置文件
+kubectl create configmap web-conf --from-file=default.conf -n demo
+
+# ========== 从字面值创建 ==========
+# 每个 --from-literal 生成一个键，适合少量环境变量
+kubectl create configmap web-env \
+  --from-literal=LOG_LEVEL=info \
+  --from-literal=UPSTREAM=api:8080 -n demo
+
+# ========== 查看与更新 ==========
+# 导出完整对象，确认 data 下的键与内容
+kubectl get configmap web-conf -o yaml
+# 只看键与字节数，不展开长配置
+kubectl describe configmap web-conf
 ```
 
 ```yaml
-# 04-ingress.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-conf
+  namespace: demo
+data:
+  default.conf: |
+    server {
+      listen 80;
+      location / {
+        proxy_pass http://api:8080;   # 上游用 Service 名，不用 Pod IP
+        proxy_set_header Host $host;
+      }
+    }
+```
+
+### 5.2 Secret
+
+Secret 与 ConfigMap 结构相同，区别是值用 base64 编码并可以被 etcd 静态加密。base64 只是编码，不是加密，`kubectl get secret -o yaml` 就能还原明文。
+
+```bash
+# ========== 从文件创建 ==========
+# 文件名作为键，避免密码进入 shell 历史
+kubectl create secret generic db-creds --from-file=password=./password.txt -n demo
+
+# ========== 从字面值创建 ==========
+# 仅用于实验，生产用文件或外部密钥管理
+kubectl create secret generic db-creds \
+  --from-literal=password='<password>' -n demo
+
+# ========== 查看键名而不看值 ==========
+# 只输出 data 字段，值仍是 base64
+kubectl get secret db-creds -o jsonpath='{.data}'
+# 显示键名与总字节数，不展开内容
+kubectl describe secret db-creds
+```
+
+| 类型 | 用途 | 约束 |
+|---|---|---|
+| `Opaque` | 通用键值 | 默认类型 |
+| `kubernetes.io/tls` | TLS 证书 | 必须含 `tls.crt` 与 `tls.key` |
+| `kubernetes.io/dockerconfigjson` | 镜像仓库凭证 | 键名固定为 `.dockerconfigjson` |
+| `kubernetes.io/service-account-token` | 服务账号令牌 | 由集群自动管理 |
+
+> **安全警告**：Secret 默认只做 base64，任何有 `get secrets` 权限的账号都能读到明文。必须开启 etcd 静态加密、收紧 RBAC，并优先使用 External Secrets 或云密钥服务，而不是把 Secret 提交进 Git。
+
+### 5.3 注入方式与更新行为
+
+| 方式 | 初始注入 | 配置更新后 | 适用 |
+|---|---|---|---|
+| `env` / `envFrom` | 启动时读一次 | 不会变，必须重启 Pod | 少量、启动期固定的配置 |
+| volume 挂载 | 挂载为文件 | 最终会更新（通常 1 分钟内） | 配置文件、证书 |
+| `subPath` 挂载 | 挂载单个文件 | 不会更新 | 很少，除非明确知道代价 |
+| `immutable: true` | 禁止修改 | 只能删了重建 | 防止误改 |
+
+```yaml
+# 挂载整份 ConfigMap，键名成为目录下的文件名
+volumes:
+  - name: conf
+    configMap:
+      name: web-conf
+containers:
+  - name: nginx
+    volumeMounts:
+      - name: conf
+        mountPath: /etc/nginx/conf.d
+        readOnly: true
+```
+
+```bash
+# ========== 配置更新后重建 Pod ==========
+# 只改 ConfigMap 不会触发重启，必须显式滚动
+kubectl rollout restart deployment/web -n demo
+# 等待滚动完成，确认新 Pod 全部就绪
+kubectl rollout status deployment/web -n demo
+```
+
+挂载更新后，Nginx 不会自动 reload；要么加 reloader sidecar，要么在配置变更时 `rollout restart`。指望“文件变了应用就生效”，是把 K8s 当成了配置中心。
+
+> **注意**：`subPath` 挂载的文件不会随 ConfigMap 更新，也不会收到符号链接替换。需要热更新的配置必须整目录挂载，不能图省事用 `subPath` 挂单个文件。
+
+---
+
+## 六、存储对象与绑定
+
+### 6.1 PV、PVC 与 StorageClass
+
+PV 是集群级的存储资源，PVC 是命名空间内的使用申请，StorageClass 描述“用哪种存储、怎么创建”。动态供给时，PVC 一创建，供给器就按 StorageClass 创建 PV 并完成绑定，使用者不需要预先准备盘。
+
+这条链路有三段独立的失败点：PVC 找不到可用的 StorageClass 会停在 Pending；PV 创建成功但节点挂载失败会停在 `ContainerCreating`；挂载成功而文件系统损坏则表现为容器启动即退出。三段分别对应存储供给、节点挂载、应用初始化，排障时先看 PVC 状态就能判断卡在哪一段。
+
+| 现象 | 原因 | 判断 |
+|---|---|---|
+| PVC `Pending`，Pod 也 `Pending` | StorageClass 是 `WaitForFirstConsumer` | 正常，等 Pod 调度后才绑定 |
+| PVC `Pending`，事件说 no storage class | 没有默认 StorageClass | `kubectl get sc`，显式指定 |
+| PVC `Pending`，事件说 waiting for consumer | 延迟绑定 | 先查 Pod 为什么没调度 |
+| PVC `Bound` 但挂载失败 | 节点/区域不匹配、权限、文件系统 | 看 Pod 事件和 CSI 日志 |
+
+04 篇用 kubeadm 搭的裸集群默认没有 CSI，PVC 会一直 `Pending`。先装云厂商 CSI、Ceph/Rook 或 local-path provisioner，再确认 `kubectl get sc` 有 `(default)` 标记。
+
+### 6.2 访问模式与回收策略
+
+访问模式描述的是**挂载约束**，不是文件系统权限：
+
+- `ReadWriteOnce`：一个节点可读写，同一节点上的多个 Pod 可以共用。
+- `ReadOnlyMany`：多节点只读。
+- `ReadWriteMany`：多节点读写，依赖存储后端支持。
+- `ReadWriteOncePod`：整个集群只允许一个 Pod 挂载，适合有状态单实例。
+
+| 模式 | 缩写 | 约束 | 常见后端 |
+|---|---|---|---|
+| ReadWriteOnce | RWO | 单节点读写 | 云盘、本地盘 |
+| ReadOnlyMany | ROX | 多节点只读 | NFS、CephFS |
+| ReadWriteMany | RWX | 多节点读写 | NFS、CephFS、对象网关 |
+| ReadWriteOncePod | RWOP | 全集群单 Pod | 云盘、本地盘 |
+
+回收策略决定 PV 释放后怎么处理：`Retain` 保留数据和卷，需人工清理；`Delete` 删除后端存储；`Recycle` 已废弃，不要使用。生产默认用 `Retain`，把删除动作留给人工确认。
+
+### 6.3 存储扩容与快照
+
+```bash
+# ========== 查看当前容量 ==========
+# STATUS 为 Bound 才说明已可用
+kubectl get pvc data-pg-0 -n demo
+# 只取容量值，便于脚本比较
+kubectl get pvc data-pg-0 -n demo -o jsonpath='{.status.capacity.storage}'
+
+# ========== 扩容 ==========
+# 前提是 StorageClass 开启 allowVolumeExpansion 且 CSI 支持
+kubectl patch pvc data-pg-0 -n demo \
+  -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+# 观察 CAPACITY 变化，可能需要重启 Pod 触发文件系统扩容
+kubectl get pvc data-pg-0 -n demo -w
+```
+
+扩容通常只能增大，不能缩小；文件系统在线扩容失败时，可能要重启 Pod 让驱动完成。扩容前先备份，别把“改个数字”当成无风险操作。
+
+快照不是备份。VolumeSnapshot 依赖 CSI 和快照控制器，快照与原卷在同一个存储系统里，存储账号被封或区域故障时会一起丢失。快照适合升级前回退，长期备份仍要落到独立的对象存储，并定期做恢复演练。
+
+---
+
+## 七、服务发现与网络策略
+
+### 7.1 Service 类型
+
+Service 给一组 Pod 提供稳定的虚拟 IP 和 DNS 名。Pod 会重建、IP 会变，Service 不变，这是服务发现的基础。它的后端由 EndpointSlice 维护，只有通过就绪探针的 Pod 才会被加入。
+
+| 类型 | 访问范围 | 实现 | 典型用途 |
+|---|---|---|---|
+| `ClusterIP` | 集群内 | 虚拟 IP + 转发规则 | 内部服务互调 |
+| `NodePort` | 集群外，经节点 IP | 每节点开同一高端口 | 测试、少量入口 |
+| `LoadBalancer` | 集群外 | 云负载均衡或 MetalLB | 生产入口 |
+| `ExternalName` | 集群内解析到外部域名 | DNS CNAME | 迁移期的外部依赖 |
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: demo
+spec:
+  type: ClusterIP
+  selector:
+    app: web                     # 必须与 Pod 标签一致，否则没有后端
+  ports:
+    - name: http
+      port: 80                   # Service 暴露的端口
+      targetPort: 80             # 容器实际监听端口
+      protocol: TCP
+```
+
+```bash
+# ========== 验证后端 ==========
+# ENDPOINTS 为空说明选择器不匹配或 Pod 未就绪
+kubectl get svc web -n demo
+# EndpointSlice 里应列出所有就绪 Pod 的地址
+kubectl get endpointslice -n demo -l kubernetes.io/service-name=web
+
+# ========== 集群内测试 ==========
+# 用完整域名访问，同时验证 DNS 与转发
+kubectl run curl --rm -it --image=curlimages/curl --restart=Never -n demo -- \
+  curl -sS http://web.demo.svc.cluster.local
+```
+
+### 7.2 EndpointSlice 与无头服务
+
+```mermaid
+flowchart LR
+    C["集群内客户端"] -->|"解析 DNS"| DNS["CoreDNS"]
+    DNS -->|"返回 ClusterIP"| C
+    C -->|"发往虚拟 IP"| KP["kube-proxy 规则"]
+    KP -->|"DNAT 到后端"| EP["EndpointSlice<br/>就绪 Pod 列表"]
+    EP --> P1["Pod A"]
+    EP --> P2["Pod B"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class C,DNS client
+    class KP,EP engine
+    class P1,P2 image
+```
+
+`clusterIP: None` 的 Service 叫无头服务，它不分配虚拟 IP，DNS 直接返回所有就绪 Pod 的地址。StatefulSet 依赖它给每个 Pod 一个可解析的名字，客户端自己做连接管理或选主。
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-headless
+  namespace: demo
+spec:
+  clusterIP: None              # 无头服务，DNS 直接返回 Pod 地址
+  selector:
+    app: pg
+  ports:
+    - port: 5432
+      targetPort: 5432
+```
+
+> **注意**：无头服务的 DNS 返回多条 A 记录，客户端若只取第一条就等于放弃了负载均衡。数据库类客户端通常需要完整列表来做拓扑感知，不要假设它自动轮询。
+
+### 7.3 Ingress 与入口
+
+Ingress 是七层路由规则，本身不工作，必须有 Ingress Controller 才有意义。它按域名和路径把请求转发到 Service，TLS 终止也在这一层完成。
+
+```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: app-ingress
-  namespace: prod-app
+  name: web
+  namespace: demo
   annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"   # 按控制器实现而定
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx        # 必须匹配已安装的 IngressClass
   tls:
-    - hosts: ["app.example.com"]
-      secretName: app-tls
+    - hosts: ["web.example.com"]
+      secretName: web-tls        # 类型为 kubernetes.io/tls 的 Secret
   rules:
-    - host: app.example.com
+    - host: web.example.com
       http:
         paths:
           - path: /
-            pathType: Prefix
+            pathType: Prefix     # Prefix 按路径段匹配，Exact 要求完全一致
             backend:
               service:
-                name: springboot-svc
+                name: web
                 port:
                   number: 80
 ```
 
-```bash
-# 自签证书仅用于测试，生产换正式证书
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout /tmp/app.key -out /tmp/app.crt -subj "/CN=app.example.com"
-kubectl -n prod-app create secret tls app-tls --cert=/tmp/app.crt --key=/tmp/app.key
+### 7.4 NetworkPolicy
 
-kubectl apply -f 01-config.yaml -f 02-mysql.yaml -f 03-app.yaml -f 04-ingress.yaml
-kubectl -n prod-app get pods,pvc,svc,ingress
+NetworkPolicy 是命名空间内默认互通之外的唯一隔离手段，前提是 CNI 支持。它是“允许列表”，没有 deny 规则，多条策略取并集；一旦某个 Pod 被某条策略选中，该方向的流量就变成默认拒绝。
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: demo
+spec:
+  podSelector: {}                # 空选择器表示本命名空间全部 Pod
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: demo
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53               # 常规 DNS 查询
+        - protocol: TCP
+          port: 53               # 大响应与区域传送
 ```
 
-**关键输出**：
+第二条不是可选项。默认拒绝 Egress 后 DNS 也会断，所有域名解析失败，表现为“服务明明在跑却全部超时”。
 
-```text
-$ kubectl -n prod-app get pods,pvc
-NAME                              READY   STATUS    RESTARTS
-pod/springboot-app-7d9f8c6b5-2k4mn   1/1     Running   0
-pod/springboot-app-7d9f8c6b5-x8p2q   1/1     Running   0
-pod/mysql-0                          1/1     Running   0
+---
 
-NAME                 STATUS   VOLUME     CAPACITY   ACCESS MODES
-persistentvolumeclaim/data-mysql-0   Bound   pvc-8f3a...   5Gi   RWO
+## 八、调度与可用性控制
 
-$ kubectl -n prod-app describe ingress app-ingress
-Rules:
-  Host             Path  Backends
-  ----             ----  --------
-  app.example.com
-                   /     springboot-svc:80 (10.244.1.9:8080,10.244.2.7:8080)
+### 8.1 资源请求与限制
+
+`requests` 决定调度器预留多少资源，`limits` 决定运行时上限。两者共同决定 QoS 等级：都设且相等为 Guaranteed，只设 requests 为 Burstable，都不设为 BestEffort。节点资源紧张时，驱逐顺序按 BestEffort、Burstable、Guaranteed 排列。
+
+| 组合 | QoS | 驱逐优先级 |
+|---|---|---|
+| requests 与 limits 都设且相等 | Guaranteed | 最低 |
+| 只设 requests，或 limits 大于 requests | Burstable | 中等 |
+| 都不设 | BestEffort | 最高 |
+
+> **注意**：只设 `limits` 不设 `requests` 时，调度器按 limits 计算占用，节点会被过早填满；而 `requests` 远小于实际用量时，节点会超卖并在压力下集中驱逐。两个值都要基于实测。
+
+### 8.2 节点选择与亲和
+
+| 手段 | 管什么 | 典型误用 |
+|---|---|---|
+| `nodeSelector` | 只去带指定标签的节点 | 标签打错，Pod 永远 Pending |
+| `nodeAffinity` | 表达式化的节点选择 | 用 required 写死机型，扩容时无节点可调度 |
+| `podAntiAffinity` | 避免同类 Pod 同节点 | 副本数大于节点数时全部 Pending |
+| `topologySpreadConstraints` | 按拓扑域均匀打散 | 只写 maxSkew，不写 topologyKey |
+| taints/tolerations | 节点拒绝或允许某类 Pod | 给业务加控制平面容忍，拖垮控制面 |
+
+`nodeAffinity` 的 `preferredDuringSchedulingIgnoredDuringExecution` 是软约束，节点不满足仍会调度；`required` 是硬约束，不满足就 Pending。排障时看到 Pending 且事件是 `node(s) didn't match`，先查是标签写错还是硬约束过严。
+
+### 8.3 拓扑打散
+
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1                          # 任意两个拓扑域的数量差不超过 1
+    topologyKey: kubernetes.io/hostname # 以节点为打散单位
+    whenUnsatisfiable: ScheduleAnyway   # 优先均匀，节点不够时仍允许调度
+    labelSelector:
+      matchLabels:
+        app: web
 ```
 
-> Ingress 的 Backends 里能看到两个 Pod IP，说明 Service 的两个副本都进了 Endpoints。显示 `<none>` 就是 selector 没匹配上，不用查 Ingress Controller。
->
-> ConfigMap 里放的是**键值对**。多行的配置文件要挂载成文件才能用，`envFrom` 会把每个键变成一个环境变量——把一段 YAML 塞进 ConfigMap 再 `envFrom`，得到的是一个含换行符的非法环境变量，应用读不到。本例的 `application.yml` 因此拆成 `SPRING_*` 环境变量注入。
+`DoNotSchedule` 更严格，节点不够时直接 Pending；`ScheduleAnyway` 先保证能跑，再尽量均匀。两者都是取舍，不是越严格越好。
 
-### 1.2 验收（10 项）
+### 8.4 PDB 与优雅退出
 
-| # | 检查 | 命令 | 通过标准 |
-|---|---|---|---|
-| 1 | 数据库有独立 PVC | `kubectl -n prod-app get pvc` | `data-mysql-0` 为 `Bound` |
-| 2 | 数据库有稳定 DNS | 集群内 `nslookup mysql-0.mysql-headless.prod-app` | 解析出 Pod IP |
-| 3 | 删 Pod 数据不丢 | 写一行 → `delete pod mysql-0` → 等 Ready 再查 | 数据还在 |
-| 4 | 密码不在 YAML 里 | `helm`/`grep` 检查清单 | 只有 `secretKeyRef` |
-| 5 | 两个副本都就绪 | `kubectl -n prod-app get deploy` | `READY 2/2` |
-| 6 | Service 有后端 | `get endpoints springboot-svc` | 两个 `IP:8080` |
-| 7 | 集群内可访问 | `curl http://springboot-svc/actuator/health` | `{"status":"UP"}` |
-| 8 | 外部 HTTPS 可访问 | `curl -k https://app.example.com/actuator/health` | `{"status":"UP"}` |
-| 9 | 更新不掉流量 | 更新期间持续 curl 200 次 | 无一次失败 |
-| 10 | 回滚生效 | `rollout undo` 后查镜像 | 回到 `v1.0.0` |
-
-```bash
-# 第 3 项的具体做法
-kubectl -n prod-app exec -it mysql-0 -- mysql -uappuser -pAppUser@2026 appdb -e \
-  "CREATE TABLE IF NOT EXISTS t(id INT PRIMARY KEY AUTO_INCREMENT, note VARCHAR(32));
-   INSERT INTO t(note) VALUES('before-restart');"
-kubectl -n prod-app delete pod mysql-0
-kubectl -n prod-app wait --for=condition=Ready pod/mysql-0 --timeout=180s
-kubectl -n prod-app exec -it mysql-0 -- mysql -uappuser -pAppUser@2026 appdb -e "SELECT * FROM t;"
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web-pdb
+  namespace: demo
+spec:
+  minAvailable: 2                # 至少保留 2 个就绪副本才允许驱逐
+  selector:
+    matchLabels:
+      app: web
 ```
 
-> 第 3 项是整个案例的核心。PVC 名字是 `data-mysql-0`，绑定关系跟着 Pod 名字走，跟 Pod 生命周期无关——这就是 StatefulSet 存在的唯一理由。
-> 第 9、10 项对应下面的滚动更新与回滚，必须真的在更新期间打请求，只跑 `rollout status` 只能说明"更新完成了"，说明不了"没掉流量"。
+PDB 只在 `kubectl drain`、节点排空、集群升级这类**自愿驱逐**时生效。节点直接断电、kubelet 失联，Pod 该没还是没；这时靠的是副本数、多可用区和快速重建。PDB 也不能让不可用的 Pod 变可用，`ALLOWED DISRUPTIONS` 按当前就绪副本计算。
 
-### 1.3 滚动更新与回滚
-
-```bash
-# 另开一个终端持续打请求，观察有没有 5xx
-kubectl -n prod-app run probe --image=busybox:1.36 --rm -it --restart=Never -- \
-  sh -c 'for i in $(seq 1 200); do wget -q -O- http://springboot-svc/actuator/health >/dev/null || echo "FAIL $i"; sleep 0.2; done; echo done'
-
-kubectl -n prod-app set image deployment/springboot-app app=registry.example.com/myteam/springboot-app:v1.1.0
-kubectl -n prod-app rollout status deployment/springboot-app
-
-# 发现 v1.1.0 有问题，立刻回滚
-kubectl -n prod-app rollout undo deployment/springboot-app
-kubectl -n prod-app rollout status deployment/springboot-app
-kubectl -n prod-app get deploy springboot-app -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
+```mermaid
+flowchart LR
+    A["删除 Pod"] --> B["从 EndpointSlice 摘除"]
+    A --> C["执行 preStop 钩子"]
+    A --> G["计时 terminationGracePeriodSeconds"]
+    C --> D["钩子结束后发送 SIGTERM"]
+    D --> E["应用处理在途请求"]
+    E --> F["进程退出"]
+    G -->|"超时"| H["SIGKILL"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A,G client
+    class B,C,D,F engine
+    class E,H image
 ```
 
-### 1.4 HPA
+摘除端点与执行 `preStop` 是并发开始的，网关可能还把请求发给正在退出的 Pod。`preStop` 先等几秒，给端点传播留时间：
+
+```yaml
+lifecycle:
+  preStop:
+    exec:
+      command: ["sh", "-c", "sleep 5"]   # 等待端点摘除传播
+terminationGracePeriodSeconds: 40        # 必须大于 preStop 加应用退出时间
+```
+
+`preStop` 执行完才发 SIGTERM，应用收到信号后停止接新请求、处理完在途请求再退出。钩子里不要写长时间阻塞的清理逻辑，否则会挤占优雅退出预算。
+
+> **注意**：`terminationGracePeriodSeconds` 要覆盖 `preStop` 与应用收尾的总时间，否则进程会在处理请求时被 SIGKILL，表现为发布期间偶发 502。
+
+---
+
+## 九、弹性伸缩与资源治理
+
+### 9.1 HPA
 
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: app-hpa
-  namespace: prod-app
+  name: web
+  namespace: demo
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: springboot-app
-  minReplicas: 2
-  maxReplicas: 8
+    name: web
+  minReplicas: 3                 # 下限，低于它会丢失冗余
+  maxReplicas: 10                # 上限，受配额与节点容量约束
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 60 # 相对 requests 的平均利用率
   behavior:
     scaleDown:
-      stabilizationWindowSeconds: 300
+      stabilizationWindowSeconds: 300   # 缩容前观察 5 分钟，避免抖动
 ```
 
 ```bash
-kubectl -n prod-app get hpa
-# TARGETS 显示 <unknown>/60% 就是 metrics 拿不到，见 2.9
+# ========== 观察伸缩 ==========
+# TARGETS 显示实际值/目标值，unknown 说明指标链路断了
+kubectl get hpa -n demo
+# 确认每个 Pod 的实时用量，requests 是利用率分母
+kubectl top pods -n demo
+# 事件里能看到扩容决策与失败原因
+kubectl describe hpa web -n demo
 ```
 
-> 开了 HPA 之后，Deployment 的 `replicas` 会被 HPA 覆盖。想固定副本数，调 `minReplicas` 或先删 HPA。
+显示 `<unknown>` 通常是 metrics-server 没装、Pod 没设 requests，或 kubelet 证书校验失败。裸 kubeadm 集群默认没有 metrics-server，先按官方清单安装；自签证书环境常要加 `--kubelet-insecure-tls`，生产应换成正确的 CA。HPA 扩容有延迟，缩容默认还有 5 分钟稳定窗口，它不适合应对秒级尖峰。
+
+### 9.2 配额与默认值
+
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team-quota
+  namespace: demo
+spec:
+  hard:
+    requests.cpu: "8"            # 命名空间内 requests 总和上限
+    requests.memory: 16Gi
+    limits.cpu: "16"
+    limits.memory: 32Gi
+    pods: "40"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: demo
+spec:
+  limits:
+    - type: Container
+      defaultRequest:            # 没写 requests 时自动补
+        cpu: 100m
+        memory: 128Mi
+      default:                   # 没写 limits 时自动补
+        cpu: 500m
+        memory: 512Mi
+```
+
+`ResourceQuota` 限制命名空间总量，`LimitRange` 给没写 requests/limits 的容器补默认值。两者都会影响调度和驱逐：配额用满后新 Pod 直接被拒绝；LimitRange 的默认值太大，会让每个 Pod 都占住资源。
+
+| 对象 | 作用范围 | 超限后果 |
+|---|---|---|
+| ResourceQuota | 整个命名空间 | 创建被拒绝，事件报 exceeded quota |
+| LimitRange | 单个容器或 Pod | 自动补默认值，或拒绝超限声明 |
+| PDB | 自愿驱逐 | 驱逐阻塞，drain 卡住 |
+| HPA | 单个工作负载 | 受配额与节点容量封顶 |
+
+配额是资源治理，不是安全边界。真正隔离租户还要靠 RBAC、NetworkPolicy 和独立的命名空间或集群。
 
 ---
 
-## 二、高频问答：会卡住你的地方，也是面试最常问的
+## 十、可运维改造完整示例
 
-### 2.1 `kubectl apply` 报 `selector does not match template labels`
+### 10.1 基础部署与配置挂载
 
-**现场**
-
-两段贴出来逐字对比，注意多余的空格和不同的 key。
-
-```bash
-kubectl get deploy <名字> -o jsonpath='{.spec.selector.matchLabels}'; echo
-kubectl get deploy <名字> -o jsonpath='{.spec.template.metadata.labels}'; echo
-```
-
-**要点**
-
-- `spec.selector.matchLabels` 和 `template.metadata.labels` 必须完全一致，错在只改了其中一处。
-- selector 创建后不可变，改不回去只能重建。
-- 判断依据是逐字对比，多余的空格和不同的 key 都算差异。
-
-**追问**
-
-- 为什么 selector 不可变？→ 它是 Deployment 认领 Pod 的唯一凭据，改了已有 Pod 就脱管。
-- 已经写错了怎么修？→ 删掉重建，`edit` 会被拒。
-- 多一个 key 也算不一致吗？→ 算，两边必须完全相等，不是包含关系。
-
-### 2.2 Service 访问不通，Endpoints 是 `<none>`
-
-**现场**
-
-`get endpoints` 为空 → 查 Pod 标签 → 查 Service selector。
-
-```bash
-kubectl -n prod-app get endpoints springboot-svc
-kubectl -n prod-app get pods --show-labels
-kubectl -n prod-app get svc springboot-svc -o jsonpath='{.spec.selector}'; echo
-```
-
-**要点**
-
-- Endpoints 是 Service 与 Pod 的接线板，为空说明 selector 一个都没选中。
-- 最常见的是命名空间不同或标签拼错，不是 Service 本身配错。
-- 顺序固定：先看 Endpoints 再决定往哪查，别直接重建 Service。
-
-**追问**
-
-- 为什么要先看 Endpoints？→ 它一眼就能分清"没接上"和"接上了但有别的问题"。
-- Endpoints 有值但访问不通？→ 问题在 Pod 或 targetPort，不在 Service。
-- 怎么快速对标签？→ `get pods --show-labels` 和 Service 的 selector 并排看。
-
-### 2.3 Pod 卡在 `Pending`，Events 里 `pod has unbound immediate PersistentVolumeClaims`
-
-**现场**
-
-先看 PVC 的 STATUS 和 Events，再看 Pod。
-
-```bash
-kubectl -n prod-app get pvc
-kubectl -n prod-app describe pvc data-mysql-0 | tail -10
-kubectl get storageclass
-```
-
-**要点**
-
-- PVC 没绑定，Pod 就永远调度不上去。
-- 常见原因是 StorageClass 名字写错、没有默认 SC、或容量超过配额。
-- 跳过 PVC 直接查 CSI，等于把该查的三件事都漏掉。
-
-**追问**
-
-- 为什么 Pending 的锅在 PVC？→ 有 unbound 的 PVC 时，调度器直接放弃这个 Pod。
-- 没有默认 SC 怎么办？→ 给某个 SC 打默认标记，或在 PVC 里显式写 `storageClassName`。
-- 三种原因怎么区分？→ `describe pvc` 的 Events 直接写着是哪一种。
-
-### 2.4 Secret 挂载后应用读到的还是旧密码
-
-**现场**
-
-进容器 `env | grep` 对比 Secret 当前值。
-
-```bash
-kubectl -n prod-app get secret mysql-secret -o jsonpath='{.data.app-password}' | base64 -d; echo
-kubectl -n prod-app exec deploy/springboot-app -- env | grep DB_PASSWORD
-kubectl -n prod-app rollout restart deploy/springboot-app
-```
-
-**要点**
-
-- 环境变量是启动时的快照，Secret 更新后容器内不会变。
-- `create` 同名会直接报已存在，反复 create 也改不了值。
-- 改完要 `rollout restart`，新值才会进容器。
-
-**追问**
-
-- 挂载成文件会更新吗？→ 会，大约 1 分钟；只有环境变量这条路不行。
-- 为什么 env 不跟着变？→ 进程的环境在启动那一刻就固定了。
-- 怎么避免每次重启？→ 配置走挂载文件，不要走环境变量。
-
-### 2.5 `ImagePullBackOff`，但本机 `docker pull` 是成功的
-
-**现场**
-
-看 Events 里的原因，`unauthorized` 就是凭据问题。
-
-```bash
-kubectl -n prod-app describe pod <pod名> | grep -A 5 Failed
-kubectl -n prod-app create secret docker-registry regcred \
-  --docker-server=registry.example.com \
-  --docker-username=deployer --docker-password='***'
-# 然后在 Pod spec 里加 imagePullSecrets: [{name: regcred}]
-```
-
-**要点**
-
-- 节点的容器运行时是独立的，没有你的 `~/.docker/config.json`。
-- 本机 `docker pull` 成功，推不出节点也能拉。
-- 私有仓库必须给 Pod 配 `imagePullSecrets`，光建 Secret 不生效。
-
-**追问**
-
-- 为什么本机能拉、节点不能？→ 凭据只对当前用户和那台机器有效。
-- 怎么区分凭据问题和网络问题？→ `unauthorized` 是凭据，拉取超时才是网络。
-- Secret 建好为什么还失败？→ 还要在 Pod spec 的 `imagePullSecrets` 里引用它。
-
-### 2.6 滚动更新卡住，旧 Pod 一直不删
-
-**现场**
-
-新 RS 的 Pod 是 `Running` 但 `READY 0/1`。
-
-```bash
-kubectl -n prod-app get pods -l app=springboot
-kubectl -n prod-app describe pod <新Pod> | grep -A 5 Readiness
-kubectl -n prod-app rollout undo deploy/springboot-app    # 先恢复服务
-```
-
-**要点**
-
-- 滚动更新是"先增后减"：新 Pod 不 Ready，副本数上不去，旧的就不会缩。
-- 根因在新 Pod 的 readinessProbe，不在 Deployment 本身。
-- 手工 `delete pod` 没用，副本账没变，控制器会补回来。
-
-**追问**
-
-- 为什么服务没挂？→ 旧 Pod 一个没删，流量还在旧版本上。
-- 怎么先恢复？→ `rollout undo` 回到上一版，再慢慢查探针。
-- `maxUnavailable: 0` 会让卡住更明显吗？→ 会，它必须等新 Pod Ready 才肯删旧的，问题直接暴露在副本数上。
-
-### 2.7 加了 NetworkPolicy 后，所有域名都解析不了
-
-**现场**
-
-从 Pod 里直接解析，看是超时还是 NXDOMAIN。
-
-```bash
-kubectl -n prod-app exec deploy/springboot-app -- nslookup kubernetes.default
-kubectl -n prod-app get networkpolicy
-# 补一条放行 kube-system 的 UDP/TCP 53
-```
-
-**要点**
-
-- `policyTypes` 声明了 `Egress` 却没写任何 `egress` 规则时，出站被默认拒绝，53 也不通。
-- 错在只堵不疏，CoreDNS 本身没挂。
-- 补一条放行 kube-system 的 UDP/TCP 53 就恢复。
-
-**追问**
-
-- 为什么是超时不是 NXDOMAIN？→ 包被丢了，DNS 请求根本没到 CoreDNS。
-- 只写 ingress 会影响出站吗？→ 不会，只有声明了 Egress 才管出站。
-- NetworkPolicy 的白名单语义是什么？→ 一旦选中 Pod 并声明方向，没放行的流量默认拒绝。
-
-### 2.8 `kubectl exec` 进不去，报 `executable file not found`
-
-**现场**
-
-先试 `sh`，再试 `ls`。
-
-```bash
-kubectl -n prod-app exec -it <pod> -- sh
-# 完全没有 shell 时用临时容器
-kubectl -n prod-app debug -it <pod> --image=busybox:1.36 --target=app
-```
-
-**要点**
-
-- 不是容器挂了，是镜像里没有 bash。
-- distroless、alpine、scratch 里可能只有 `sh`，甚至什么都没有。
-- 完全没有 shell 时用 `kubectl debug` 的临时容器。
-
-**追问**
-
-- 怎么判断镜像里有什么？→ 从 `sh` 到 `ls` 逐个试，报 not found 就换。
-- `--target` 是干什么的？→ 共享目标容器的进程命名空间，才能看到它的进程。
-- 临时容器会改原 Pod 吗？→ 不写进 Pod 模板，Pod 重建就消失。
-
-### 2.9 HPA 的 TARGETS 显示 `<unknown>`
-
-**现场**
-
-先看 Pod 有没有 requests，再看 metrics APIService。
-
-```bash
-kubectl -n prod-app get deploy springboot-app -o jsonpath='{.spec.template.spec.containers[0].resources}'; echo
-kubectl get apiservice v1beta1.metrics.k8s.io
-kubectl top pods -n prod-app
-```
-
-**要点**
-
-- `<unknown>` 表示拿不到指标，改阈值不会有任何作用。
-- 最常见是 Pod 没设 `resources.requests`，百分比算不出来。
-- 其次才是 metrics-server 没就绪。
-
-**追问**
-
-- 为什么没 requests 就算不出百分比？→ `Utilization` 的基数就是 requests。
-- 设了 requests 还是 unknown？→ 查 apiservice 和 metrics-server Pod 的状态。
-- 那调阈值能解决吗？→ 不能，分母本来就不存在。
-
-### 2.10 删除 StatefulSet 后数据"没了"
-
-**现场**
-
-先查 PVC 是否还存在，再查 PV 的回收策略。
-
-```bash
-kubectl -n prod-app get pvc
-kubectl get pv <pv名> -o jsonpath='{.spec.persistentVolumeReclaimPolicy}'; echo
-```
-
-**要点**
-
-- 删 StatefulSet 时 PVC 默认保留，数据还在，不是 K8s 把它删了。
-- 真正丢数据的是手工删了 PVC 且 reclaimPolicy 是 `Delete`。
-- 顺序是先看 PVC 存不存在，再动备份。
-
-**追问**
-
-- 为什么 PVC 不跟着删？→ 数据保护和 Pod 生命周期是分开设计的。
-- `Delete` 和 `Retain` 差在哪？→ 前者删 PVC 时连底层存储一起删，后者留着等人处理。
-- 怎么确认数据还在？→ PVC 还在且是 `Bound`，数据就还在那块盘上。
-
-### 2.11 ConfigMap 用 `subPath` 挂载，改了不更新
-
-**现场**
-
-看 volumeMounts 里有没有 `subPath`。
-
-```bash
-kubectl -n prod-app get deploy springboot-app -o yaml | grep -A 5 volumeMounts
-# 要么去掉 subPath 挂目录，要么接受"改完重启"
-kubectl -n prod-app rollout restart deploy/springboot-app
-```
-
-**要点**
-
-- `subPath` 是一次性绑定，kubelet 不会同步更新。
-- 只有挂整个目录才会周期性刷新。
-- 要么去掉 `subPath` 挂目录，要么接受"改完重启"。
-
-**追问**
-
-- 为什么挂目录就能更新？→ kubelet 周期性同步整个卷的内容。
-- 更新有延迟吗？→ 有，大约 1 分钟。
-- 文件更新了应用就生效？→ 不一定，很多应用只在启动时读一次配置。
-
-### 2.12 Ingress 配好了，访问返回 404
-
-**现场**
-
-看 Ingress 的 ADDRESS 是否有值，再看 Controller 日志。
-
-```bash
-kubectl -n prod-app get ingress
-kubectl -n ingress-nginx logs deploy/ingress-nginx-controller --tail=30
-# 确认请求的 Host 头和 rules 里的 host 一致
-curl -H 'Host: app.example.com' http://<controller-ip>/
-```
-
-**要点**
-
-- 404 通常来自 Controller 本身，不是后端服务。
-- 三种原因：`ingressClassName` 不匹配、host 不匹配、path 与实际请求路径不一致。
-- 先看 ADDRESS 有没有值，它代表有没有 Controller 接管这份 Ingress。
-
-**追问**
-
-- ADDRESS 为空说明什么？→ 没有任何 Controller 认领它，rules 写得再对也没人执行。
-- 为什么要带 `-H 'Host: ...'`？→ 直接打 Controller IP 时不带 Host，命中不了 rules。
-- 404 和 503 差在哪？→ 404 是路由没命中，503 是路由命中了但没有可用后端。
-
----
-
-## 三、核心知识：从零开始要建立的东西
-
-### 3.1 所有对象的统一结构
-
-| 字段 | 作用 | 注意 |
-|---|---|---|
-| `apiVersion` | 用哪套 API 解析 | 写错报 `no matches for kind` |
-| `kind` | 对象类型 | 大小写敏感 |
-| `metadata.name` | 同命名空间内唯一 | 必须符合 DNS-1123 |
-| `metadata.labels` | 给 Selector 用 | 参与匹配，改动影响关联 |
-| `metadata.annotations` | 非标识信息 | 不参与筛选，可放工具配置 |
-| `spec` | 你写的期望 | 各对象差异最大 |
-| `status` | 系统填的实际 | 只读，写 YAML 时不用写 |
-
-| API 组 | 包含 |
-|---|---|
-| `v1` | Pod、Service、ConfigMap、Secret、PVC、ServiceAccount |
-| `apps/v1` | Deployment、StatefulSet、DaemonSet、ReplicaSet |
-| `batch/v1` | Job、CronJob |
-| `networking.k8s.io/v1` | Ingress、NetworkPolicy |
-| `autoscaling/v2` | HPA |
-| `storage.k8s.io/v1` | StorageClass |
-
-### 3.2 工作负载家族的选型依据
-
-| 对象 | 副本语义 | 稳定身份 | 独立存储 | 适用 |
-|---|---|---|---|---|
-| Pod | 无 | 无 | 手动挂 | 调试，生产不直接用 |
-| Deployment | N 个，可滚动 | 无 | 共享 PVC | 无状态服务 |
-| StatefulSet | N 个，有序 | 有 | 每副本一套 | 数据库、消息队列 |
-| DaemonSet | 每节点一个 | 无 | 节点本地 | 采集、CNI、代理 |
-| Job | 成功 N 次 | 无 | 可挂 | 迁移、批处理 |
-| CronJob | 按 cron 反复 | 无 | 可挂 | 备份、报表 |
-
-```mermaid
-flowchart TD
-    classDef ok fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef ask fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-
-    Q1{"要稳定身份和独立存储?"}:::ask -->|"是"| SS["StatefulSet"]:::ok
-    Q1 -->|"否"| Q2{"每个节点都要一份?"}:::ask
-    Q2 -->|"是"| DS["DaemonSet"]:::ok
-    Q2 -->|"否"| Q3{"跑完就结束?"}:::ask
-    Q3 -->|"是"| Q4{"按时间反复跑?"}:::ask
-    Q4 -->|"是"| CJ["CronJob"]:::ok
-    Q4 -->|"否"| J["Job"]:::ok
-    Q3 -->|"否"| DP["Deployment"]:::ok
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
-```
-
-**选型问题三个**：要不要稳定身份？要不要每副本独立存储？跑完就停还是常驻？答案唯一确定对象。90% 的业务是 Deployment。
-
-> **面试**：常问「为什么数据库要用 StatefulSet 而不是 Deployment？」答：Pod 重建后要拿回同一个名字和同一块盘，Deployment 的 Pod 是无状态的，卷也会挂到别人身上。
-
-### 3.3 Pod 的多容器协作模式
-
-| 模式 | 结构 | 用途 |
-|---|---|---|
-| Sidecar | 主容器 + 辅助容器 | 日志收集、代理 |
-| Init | 先跑完再启动主容器 | 等依赖、准备文件、改权限 |
-| Ambassador | 主容器连本地代理 | 访问外部服务 |
-| Adapter | 转换输出格式 | 统一监控指标 |
-
-同 Pod 容器共享网络与 Volume，所以 sidecar 能读主容器写的日志目录，init 容器能改主容器要用的文件权限。**边界**：共享网络意味着不能监听同一端口；共享生命周期意味着 sidecar 挂了整个 Pod 重启。
-
-### 3.4 Deployment 的滚动更新参数
-
-| 参数 | 含义 | 生产建议 |
-|---|---|---|
-| `maxSurge` | 更新时最多超出几个 | 1（省资源）或 25% |
-| `maxUnavailable` | 更新时最多几个不可用 | **0**（不降容量） |
-| `minReadySeconds` | Ready 后观察多久才算可用 | 5~10，防止"刚起来就报错" |
-| `progressDeadlineSeconds` | 多久没进展判定失败 | 600 |
-| `revisionHistoryLimit` | 保留几个旧 RS | 5 |
-
-`maxSurge: 1` + `maxUnavailable: 0` 的组合：更新时先起一个新 Pod，等它 Ready，再删一个旧的。全程可用副本数不低于期望值，代价是需要额外一份资源。
-
-> **面试**：常问「滚动更新怎么做到不掉流量？`maxSurge` 和 `maxUnavailable` 怎么配？」答：`maxUnavailable: 0` 加 `maxSurge: 1`，先起新的等 Ready 再删旧的，代价是多一份资源。
-
-### 3.5 回滚的机制与边界
-
-回滚不是"反向执行"，而是把旧 ReplicaSet 的 Pod 模板复制回 Deployment，触发一次新的正向滚动更新。
-
-| 操作 | 命令 | 结果 |
-|---|---|---|
-| 看历史 | `rollout history deploy/x` | 列出 revision |
-| 回上一版 | `rollout undo deploy/x` | 新 revision |
-| 回指定版 | `rollout undo deploy/x --to-revision=1` | 新 revision |
-| 暂停 | `rollout pause deploy/x` | 改模板不生效 |
-| 恢复 | `rollout resume deploy/x` | 一次性生效 |
-
-**边界**：回滚只回滚"声明"，不回滚"现实"。StatefulSet 的 `volumeClaimTemplates` 从 8Gi 改成 10Gi 后回滚，声明回到 8Gi，已分配的 PVC 还是 10Gi（存储只能扩不能缩）。
-
-### 3.6 Service 的四种类型与 Headless
-
-| 类型 | 访问来源 | 依赖 |
-|---|---|---|
-| ClusterIP | 集群内 | 无 |
-| NodePort | 节点 IP:30000-32767 | 无 |
-| LoadBalancer | 公网 | 云 LB / MetalLB |
-| ExternalName | 集群内 DNS 别名 | 无 |
-| Headless | 集群内，返回全部 Pod IP | 无 |
-
-`targetPort` 建议写**端口名**而不是数字：容器改端口时，Service 不用跟着改。
+在 04 篇搭好的三节点集群上，把最初的裸 Deployment 补齐成一个可运维的服务。
 
 ```yaml
-ports:
-  - name: http
-    port: 80
-    targetPort: http     # 对应 containerPort 的 name
-```
-
-### 3.7 kube-proxy 的 ClusterIP 转发实现
-
-ClusterIP 是虚拟地址，没有网卡持有它。kube-proxy 在每个节点写转发规则：
-
-| 模式 | 实现 | 特点 |
-|---|---|---|
-| iptables | 规则链做 DNAT | 默认，规则多时线性增长 |
-| IPVS | 内核哈希表 | 大集群性能好，需加载 `ip_vs` |
-| nftables | 新版实现 | 逐步替代 iptables |
-
-```mermaid
-flowchart LR
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef warn fill:#FEF3C7,stroke:#D97706,color:#78350F
-    classDef bad fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D
-
-    C["客户端"]:::client --> V["ClusterIP 10.96.x.x"]:::warn
-    V --> R["iptables / IPVS 规则"]:::service
-    R -->|"DNAT"| P1["Pod 10.244.1.5:8080"]:::service
-    R -->|"DNAT"| P2["Pod 10.244.2.7:8080"]:::service
-    N["没有进程监听 所以 ping 不通"]:::bad -.-> V
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
-```
-
-**推论**：`ping ClusterIP` 通常不通，因为它只是四层转发目标，不响应 ICMP。测连通要用 `curl` 或 `nc`。
-
-### 3.8 Ingress 与 Ingress Controller 的分工
-
-| 概念 | 是什么 | 有没有它 |
-|---|---|---|
-| Ingress | 一份路由声明 | 没有 Controller 时只是一段没人执行的 YAML |
-| Ingress Controller | 真正监听并生成代理配置的程序 | 必须有 |
-| IngressClass | 声明归哪个 Controller 管 | 多 Controller 时必须 |
-
-**边界**：Ingress 只做七层 HTTP 路由。TCP/UDP、gRPC 之外的协议要用 Gateway API 或其他专用 CRD。`ingress-nginx` 的维护状态与后续路线以官方公告为准，新项目建议同时评估 Gateway API。
-
-### 3.9 ConfigMap 与 Secret 的注入差异
-
-| | 环境变量 | 挂载为文件 |
-|---|---|---|
-| 更新是否生效 | 否，需重启 | 是，约 1 分钟 |
-| 用 `subPath` | — | 否，不更新 |
-| 适合 | 启动参数、开关 | 配置文件、证书 |
-| 排障方式 | `env` | `cat` 文件 |
-
-**Secret 的本质**：API Server 里存的是 base64 编码的字符串，**不是加密**。任何能 `get secret` 的人都能解出明文。真正的加密要开 etcd 静态加密，或者用 External Secrets 把密钥留在外部系统。
-
-> **面试**：常问「Secret 是加密存储的吗？」答：不是，只是 base64，能 get 就能解出明文，要真加密得开 etcd 静态加密或用外部密钥系统。
-
-### 3.10 存储的四层抽象
-
-| 对象 | 视角 | 生命周期 |
-|---|---|---|
-| Volume | Pod 内挂载点 | 跟 Pod |
-| PV | 集群的存储资源 | 独立 |
-| PVC | 应用的申请单 | 独立，可被新 Pod 复用 |
-| StorageClass | 动态供应的模板 | 集群级 |
-
-```mermaid
-flowchart TD
-    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
-    classDef data fill:#FEF3C7,stroke:#D97706,color:#78350F
-
-    P["Pod 声明挂载 PVC"]:::client
-    C["PVC 申请容量与模式"]:::data
-    S["StorageClass 提供模板"]:::service
-    V["PV 实际存储"]:::data
-
-    P --> C
-    C -->|"动态供应"| S
-    S -->|"创建"| V
-    C -->|"绑定"| V
-    linkStyle default stroke:#94A3B8,stroke-width:1.5px
-```
-
-| 访问模式 | 简写 | 含义 |
-|---|---|---|
-| ReadWriteOnce | RWO | 单节点读写 |
-| ReadOnlyMany | ROX | 多节点只读 |
-| ReadWriteMany | RWX | 多节点读写，需共享存储 |
-| ReadWriteOncePod | RWOP | 单 Pod 读写 |
-
-**回收策略**：`Delete`（删 PVC 时删底层存储，云盘默认）、`Retain`（保留，需手工处理）。数据无价，动 PVC 前先看这个字段。
-
-### 3.11 调度约束的四种手段
-
-| 手段 | 表达 | 强制/偏好 |
-|---|---|---|
-| `nodeSelector` | 按节点标签精确匹配 | 强制 |
-| `nodeAffinity` | 标签表达式 | 可强制可偏好 |
-| `podAffinity` / `podAntiAffinity` | 与其他 Pod 同置/分散 | 可强制可偏好 |
-| `taints` / `tolerations` | 节点排斥，Pod 声明容忍 | 强制 |
-
-**最常用的一条**：用 `podAntiAffinity` 把同一服务的副本分散到不同节点，避免一台机器挂了全灭。
-
-```yaml
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      topologySpreadConstraints:          # 三个副本尽量分散到不同节点
+        - maxSkew: 1
           topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: springboot
+              app: web
+      containers:
+        - name: nginx
+          image: nginx:1.30-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+      terminationGracePeriodSeconds: 40
+      volumes:
+        - name: conf
+          configMap:
+            name: web-conf
 ```
 
-### 3.12 探针的失败语义
+```bash
+# ========== 先准备配置再部署 ==========
+# ConfigMap 必须先存在，否则 Pod 卡在 ContainerCreating
+kubectl create configmap web-conf --from-file=default.conf -n demo
+# 提交完整 Deployment，包含打散、探针与 preStop
+kubectl apply -f web-full.yaml
+# 等待三个副本全部就绪，脚本里不能省略
+kubectl rollout status deployment/web -n demo
+# 确认副本分布在不同节点
+kubectl get pods -n demo -o wide
+```
 
-| 探针 | 失败后 | 配置要点 |
+### 10.2 打散、PDB 与节点维护演练
+
+```bash
+# ========== 创建 PDB ==========
+# 三个副本要求至少三个可用，任何驱逐都会被挡住
+kubectl apply -f web-pdb.yaml
+# ALLOWED DISRUPTIONS 应为 0
+kubectl get pdb web-pdb -n demo
+```
+
+预期：
+
+```text
+NAME      MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+web-pdb   3               N/A               0                     8s
+```
+
+```bash
+# ========== 演练节点维护 ==========
+# 应被 PDB 拒绝，服务不会因维护而中断
+kubectl drain k8s-node1 --ignore-daemonsets --delete-emptydir-data
+```
+
+预期：
+
+```text
+evicting pod demo/web-6f9c8d7b5-2xj9k
+error when evicting pods/"web-..." -n "demo": Cannot evict pod as it would violate the pod's disruption budget.
+```
+
+把 `minAvailable` 调到 2 再 drain，`ALLOWED DISRUPTIONS` 变成 1，驱逐会一次一个地进行，Pod 在 node2 上重建。
+
+```bash
+# ========== 放宽 PDB 后重试 ==========
+# 把下限降到 2，允许同时中断一个副本
+kubectl patch pdb web-pdb -n demo --type=merge -p '{"spec":{"minAvailable":2}}'
+# 确认 ALLOWED DISRUPTIONS 变为 1
+kubectl get pdb web-pdb -n demo
+# 重新排空，驱逐会逐个进行
+kubectl drain k8s-node1 --ignore-daemonsets --delete-emptydir-data
+
+# ========== 维护完成后恢复调度 ==========
+# uncordon 只恢复可调度，不会把已迁走的 Pod 迁回
+kubectl uncordon k8s-node1
+# 确认副本分布已经倾斜，便于后续用 descheduler 调整
+kubectl get pods -n demo -o wide
+```
+
+### 10.3 配置更新链路验证
+
+```bash
+# ========== 修改配置并滚动 ==========
+# 只改 ConfigMap 不会重启 Pod，必须显式触发
+kubectl edit configmap web-conf -n demo
+# 滚动重建，新 Pod 会挂载更新后的文件
+kubectl rollout restart deployment/web -n demo
+# 等待滚动完成，确认无 Pod 卡在未就绪
+kubectl rollout status deployment/web -n demo
+
+# ========== 确认新副本生效 ==========
+# 查看 Pod 列表与标签，确认全部为新副本
+kubectl get pods -n demo --show-labels
+# 直接在容器内读取配置文件，验证挂载内容
+kubectl exec deploy/web -n demo -- cat /etc/nginx/conf.d/default.conf
+```
+
+| 改造项 | 挡住的故障 | 验证方式 |
 |---|---|---|
-| startupProbe | 重启容器，直到成功 | 给足 `failureThreshold × periodSeconds` |
-| readinessProbe | 从 Endpoints 摘除 | 检查依赖是否就绪 |
-| livenessProbe | 重启容器 | **只查进程自身** |
-
-**最常见的错误**：liveness 查数据库。数据库抖一下，所有副本被同时重启，服务从"降级"变成"全挂"。依赖类检查放 readiness。
-
-> **面试**：常问「liveness 和 readiness 到底怎么分工？」答：liveness 只查进程自身、失败重启，readiness 查依赖、失败摘流量，依赖检查绝不能放进 liveness。
-
-### 3.13 requests、limits 与 QoS
-
-| QoS | 条件 | 驱逐顺序 |
-|---|---|---|
-| Guaranteed | 每个容器 requests == limits | 最后 |
-| Burstable | 设了 requests 但不相等 | 中间 |
-| BestEffort | 完全没设 | 最先 |
-
-CPU 超 limits 被限流（变慢），内存超 limits 被 OOM Kill（直接死）。这两者的排障方向完全相反，`kubectl describe pod` 的 `OOMKilled` 和 `top` 的 throttling 是分水岭。
-
-### 3.14 HPA 的计算与前提
-
-目标副本数 = `ceil(当前副本 × 当前指标 / 目标指标)`，再夹到 `[min, max]`。
-
-| 前提 | 不满足的后果 |
-|---|---|
-| Pod 有 `resources.requests` | TARGETS 显示 `<unknown>` |
-| metrics-server 就绪 | 同上 |
-| 指标是 `Utilization` | 基于 requests 的百分比 |
-
-**边界**：HPA 只扩不缩得快。默认缩容有 5 分钟稳定窗口，这是防抖动，不是故障。扩容受节点容量限制，节点满了新 Pod 会 Pending。
-
-### 3.15 命名空间与配额
-
-| 对象 | 作用范围 | 管什么 |
-|---|---|---|
-| Namespace | 逻辑分区 | 名字、RBAC、配额边界 |
-| ResourceQuota | 一个 namespace | 总量（CPU、内存、Pod 数、PVC 数） |
-| LimitRange | 一个 namespace | 单容器的默认值与上下限 |
-
-**关键交互**：namespace 一旦有 quota，新建 Pod 必须声明 requests/limits，否则被拒绝。这时用 LimitRange 给默认值，否则每个团队都要自己记住写。
-
-**边界**：namespace 不是网络隔离。跨 namespace 的 Pod 默认互通，要隔离必须写 NetworkPolicy。
+| 拓扑打散 | 单节点故障导致全量副本丢失 | `get pods -o wide` 看分布 |
+| PDB | 维护时副本被一次性清空 | drain 被拒绝或逐个驱逐 |
+| 就绪探针 | 未初始化完成就接流量 | `get endpointslice` 看就绪地址 |
+| preStop | 发布期间偶发 502 | 滚动更新时持续压测 |
+| 资源声明 | 节点超卖与集中驱逐 | `describe node` 看分配率 |
 
 ---
 
-## 四、冷门知识汇总
+## 十一、常见排障
 
-| 知识点 | 为什么冷门 | 用到时的关键词 |
+### 11.1 故障对照表
+
+| 现象 | 最可能原因 | 处理 |
 |---|---|---|
-| PodDisruptionBudget | 平时不配，`drain` 时才发现会一次干掉所有副本 | `minAvailable`、`maxUnavailable` |
-| `topologySpreadConstraints` | 比反亲和更精细，但配置复杂 | `maxSkew`、`topologyKey` |
-| preStop 钩子 | 优雅关闭要靠它，默认直接 SIGTERM | `preStop`、`terminationGracePeriodSeconds` |
-| `kubectl debug` 临时容器 | 镜像没 shell 时的唯一办法 | `--target`、`--image` |
-| Server-Side Apply | 多人协作时的字段所有权，冲突才想起 | `--server-side`、`--field-manager` |
-| 字段不可变清单 | 改的时候才报错，事前不会提醒 | `spec.selector`、`volumeClaimTemplates` |
-| `ephemeral-storage` | 只配 CPU/内存，日志撑爆磁盘才发现 | `requests.ephemeral-storage` |
-| EndpointSlice | Endpoints 的替代品，大规模时才有感知 | `discovery.k8s.io/v1` |
-| Secret 静态加密 | 默认不加密，合规审计才要求 | `EncryptionConfiguration` |
-| `kubectl explain` 深层路径 | 大家只用第一层 | `deploy.spec.strategy.rollingUpdate` |
+| Pod `Pending` | requests 太大、污点、PVC 未绑定、配额 | `describe pod` 看 Events，`describe node` 看可分配资源 |
+| PVC 一直 `Pending` | 无默认 StorageClass，或延迟绑定 | `get sc`，确认 Pod 是否已调度 |
+| `CrashLoopBackOff` | 应用退出、配置错、权限错 | `logs --previous`，`describe pod` 看退出码 |
+| `OOMKilled` | 内存 limit 太小或堆未限制 | 调 limit，同时调运行时堆参数 |
+| Running 但 `0/1` | readiness 失败 | `describe` 看探针，`exec` 手工请求 |
+| `Evicted` | 节点磁盘或内存压力 | 清镜像日志、扩容，查 `describe node` |
+| 配置改了没生效 | 用 env 或 `subPath`，或没重启 | 改挂载方式，`rollout restart` |
+| Secret 读取被拒 | RBAC 无权限，或名字与命名空间错 | `kubectl auth can-i get secret` |
+| `drain` 一直卡住 | PDB 的 `minAvailable` 等于副本数 | 扩容或下调 PDB，确认业务可承受 |
+| HPA 显示 `<unknown>` | metrics-server、requests、证书 | `kubectl top pods` 先验证指标链路 |
+| 默认拒绝后 DNS 全挂 | Egress 没放行 53 | 补 DNS 允许策略 |
+| StatefulSet Pod 卡住 | PVC 未绑定，或前序号未终止 | 从序号 0 查，先看 PVC 与终止状态 |
+| 删了 StatefulSet 数据还在 | PVC 默认保留 | 确认后再删 PVC，注意回收策略 |
+
+### 11.2 排查顺序
+
+```mermaid
+flowchart TD
+    A["现象: 工作负载异常"] --> B["get 看状态与重启次数"]
+    B --> C{"Pod 是否已调度"}
+    C -->|"Pending"| D["describe pod 看 Events 与配额"]
+    C -->|"已调度"| E{"容器是否启动"}
+    E -->|"未启动"| F["查镜像、配置引用、PVC"]
+    E -->|"反复重启"| G["logs --previous 与退出码"]
+    E -->|"Running 未就绪"| H["查探针与 EndpointSlice"]
+    D --> I["核对节点资源、污点、亲和"]
+    classDef client fill:#e3f2fd,stroke:#1565c0;
+    classDef engine fill:#e8f5e9,stroke:#2e7d32;
+    classDef image fill:#fff3e0,stroke:#ef6c00;
+    class A,B client
+    class C,E,H engine
+    class D,F,G,I image
+```
+
+1. `kubectl get` 看状态、重启次数、所在节点。
+2. `kubectl describe` 看 Events 和 Conditions。
+3. `kubectl logs`，崩溃过的加 `--previous`。
+4. `kubectl get pvc,pv,sc` 确认存储链路。
+5. `kubectl exec` 进容器测配置、DNS、端口。
+6. `kubectl auth can-i` 与 NetworkPolicy 确认权限与连通。
+7. 最后看节点压力、kubelet、CSI 与 CNI 日志。
+
+```bash
+# ========== 常用定位命令 ==========
+# 事件按时间排序，最新问题在最后
+kubectl describe pod -n demo -l app=web | sed -n '/Events/,$p'
+
+# 上一次崩溃的日志，容器已重启时唯一有效
+kubectl logs -n demo deploy/web --previous --tail=100
+
+# 确认 Service 是否真的没有后端
+kubectl get endpointslice -n demo -l kubernetes.io/service-name=web -o wide
+
+# 确认当前账号能否读 Secret
+kubectl auth can-i get secrets -n demo
+```
+
+排障的关键是不要跳步。先确认对象是否被调度，再确认容器是否启动，最后才看应用日志。顺序颠倒会把调度问题误判成应用问题，改配置只会让现场更乱。
