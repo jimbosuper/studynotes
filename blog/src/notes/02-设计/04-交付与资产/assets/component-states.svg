@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="380" viewBox="0 0 720 380">
+  <rect width="720" height="380" fill="#f8fafc"/>
+  <text x="24" y="26" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">按钮的六个状态：每个状态都有明确反馈，且不改变布局尺寸</text>
+
+  <!-- 默认 -->
+  <rect x="24" y="42" width="212" height="136" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">默认 Default</text>
+  <rect x="70" y="84" width="120" height="34" rx="7" fill="#2563eb"/>
+  <text x="108" y="106" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">提交</text>
+  <text x="40" y="144" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">主色实底，同屏只有一个</text>
+  <text x="40" y="160" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">主操作按钮</text>
+
+  <!-- 悬停 -->
+  <rect x="254" y="42" width="212" height="136" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="270" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">悬停 Hover</text>
+  <rect x="300" y="84" width="120" height="34" rx="7" fill="#1d4ed8"/>
+  <text x="338" y="106" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">提交</text>
+  <text x="270" y="144" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">底色加深一档，120ms</text>
+  <text x="270" y="160" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">触屏设备不依赖此态</text>
+
+  <!-- 按下 -->
+  <rect x="484" y="42" width="212" height="136" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="500" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">按下 Active</text>
+  <rect x="534" y="86" width="112" height="30" rx="7" fill="#1e40af"/>
+  <text x="568" y="106" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">提交</text>
+  <text x="500" y="144" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">scale 0.96，80ms</text>
+  <text x="500" y="160" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">松手立即回弹</text>
+
+  <!-- 聚焦 -->
+  <rect x="24" y="190" width="212" height="136" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="214" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">键盘聚焦 Focus</text>
+  <rect x="66" y="230" width="128" height="42" rx="10" fill="none" stroke="#1d4ed8" stroke-width="3"/>
+  <rect x="70" y="234" width="120" height="34" rx="7" fill="#2563eb"/>
+  <text x="108" y="256" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">提交</text>
+  <text x="40" y="292" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">仅 :focus-visible 显示，</text>
+  <text x="40" y="308" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">鼠标点击不出环</text>
+
+  <!-- 禁用 -->
+  <rect x="254" y="190" width="212" height="136" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="270" y="214" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">禁用 Disabled</text>
+  <rect x="300" y="232" width="120" height="34" rx="7" fill="#e2e8f0"/>
+  <text x="338" y="254" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">提交</text>
+  <text x="270" y="292" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">用灰底灰字，不用 0.4 透明度</text>
+  <text x="270" y="308" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">旁边要给原因说明</text>
+
+  <!-- 加载 -->
+  <rect x="484" y="190" width="212" height="136" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="500" y="214" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">加载 Loading</text>
+  <rect x="534" y="232" width="120" height="34" rx="7" fill="#1d4ed8"/>
+  <circle cx="556" cy="249" r="7" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="22 12"/>
+  <text x="572" y="254" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">提交中</text>
+  <text x="500" y="292" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">宽度锁定为原按钮，防跳动</text>
+  <text x="500" y="308" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">循环动画用 linear</text>
+</svg>

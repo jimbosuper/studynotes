@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420">
+  <rect width="720" height="420" fill="#f8fafc"/>
+  <text x="40" y="32" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="16" font-weight="600" fill="#1f2937">语义地标与阅读顺序</text>
+
+  <rect x="40" y="52" width="640" height="52" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="56" y="76" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#1e3a8a">&lt;header&gt;</text>
+  <text x="56" y="94" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">品牌 / 页面标题 / 用户信息</text>
+
+  <rect x="40" y="120" width="130" height="220" rx="6" fill="#e0f2fe" stroke="#7dd3fc"/>
+  <text x="54" y="144" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#0c4a6e">&lt;nav&gt;</text>
+  <text x="54" y="164" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">主导航</text>
+
+  <rect x="186" y="120" width="330" height="220" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="200" y="144" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#1f2937">&lt;main&gt;</text>
+  <text x="200" y="164" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#1f2937">订单详情</text>
+  <rect x="200" y="178" width="280" height="1" fill="#e2e8f0"/>
+  <text x="200" y="200" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#64748b">&lt;section aria-labelledby&gt;</text>
+  <rect x="200" y="210" width="280" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="200" y="226" width="220" height="8" rx="3" fill="#e2e8f0"/>
+  <text x="200" y="258" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#64748b">&lt;section&gt; 商品明细</text>
+  <rect x="200" y="268" width="280" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="200" y="284" width="240" height="8" rx="3" fill="#e2e8f0"/>
+  <rect x="200" y="304" width="72" height="20" rx="4" fill="#2563eb"/>
+  <text x="216" y="318" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">提交</text>
+
+  <rect x="532" y="120" width="148" height="220" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="546" y="144" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#334155">&lt;aside&gt;</text>
+  <text x="546" y="164" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#64748b">相关操作 / 帮助</text>
+
+  <rect x="40" y="356" width="640" height="36" rx="6" fill="#e2e8f0" stroke="#cbd5e1"/>
+  <text x="56" y="378" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#334155">&lt;footer&gt; 版权 / 联系方式</text>
+</svg>

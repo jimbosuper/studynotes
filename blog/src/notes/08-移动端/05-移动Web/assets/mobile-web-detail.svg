@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="720" viewBox="0 0 380 720">
+  <rect width="380" height="720" fill="#f8fafc"/>
+  <text x="16" y="26" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">H5 商品详情页适配效果（安全区 + 响应式图片 + 吸底操作条）</text>
+
+  <!-- 手机外框 -->
+  <rect x="40" y="44" width="300" height="640" rx="30" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="140" y="56" width="100" height="8" rx="4" fill="#e2e8f0"/>
+
+  <!-- 状态栏 -->
+  <text x="64" y="90" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">9:41</text>
+  <rect x="266" y="82" width="16" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="288" y="82" width="22" height="8" rx="2" fill="#cbd5e1"/>
+
+  <!-- 顶部导航（吸顶毛玻璃） -->
+  <rect x="40" y="102" width="300" height="44" fill="#ffffff" opacity="0.9"/>
+  <text x="64" y="130" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" font-weight="600" fill="#1f2937">商品详情</text>
+  <text x="316" y="130" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#64748b">···</text>
+
+  <!-- 主图（固定宽高比，LCP 元素 preload） -->
+  <rect x="40" y="146" width="300" height="240" fill="#eff6ff"/>
+  <rect x="60" y="166" width="200" height="180" rx="8" fill="#dbeafe"/>
+  <text x="160" y="262" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1e3a8a" text-anchor="middle">AVIF/WebP 按需分档</text>
+  <text x="160" y="282" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#3b6fb6" text-anchor="middle">750w / 1125w srcset</text>
+  <rect x="272" y="166" width="48" height="48" rx="24" fill="#ffffff" opacity="0.9"/>
+  <text x="296" y="192" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#2563eb" text-anchor="middle">1/5</text>
+
+  <!-- 价格区 -->
+  <text x="64" y="420" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#dc2626">¥ 299</text>
+  <text x="140" y="420" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">已售 2.3 万</text>
+  <text x="64" y="446" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#1f2937">无线降噪耳机 蓝牙 5.4 长续航</text>
+
+  <!-- 规格行 -->
+  <rect x="64" y="464" width="252" height="40" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="76" y="489" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">已选：星岩黑 / 官方标配</text>
+  <text x="304" y="489" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">›</text>
+
+  <!-- 数量行（16px 输入框，iOS 不放大） -->
+  <rect x="64" y="516" width="252" height="40" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="76" y="541" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">数量</text>
+  <rect x="250" y="524" width="26" height="24" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="263" y="541" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569" text-anchor="middle">-</text>
+  <rect x="278" y="524" width="36" height="24" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="296" y="541" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937" text-anchor="middle">1</text>
+
+  <!-- 吸底操作条（含安全区 padding） -->
+  <rect x="40" y="600" width="300" height="60" fill="#ffffff"/>
+  <rect x="40" y="600" width="300" height="1" fill="#e2e8f0"/>
+  <rect x="56" y="612" width="92" height="38" rx="10" fill="#fde68a"/>
+  <text x="102" y="636" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#92400e" text-anchor="middle">加入购物车</text>
+  <rect x="156" y="612" width="128" height="38" rx="10" fill="#2563eb"/>
+  <text x="220" y="636" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff" text-anchor="middle">立即购买</text>
+
+  <!-- 手势条 -->
+  <rect x="150" y="670" width="80" height="4" rx="2" fill="#cbd5e1"/>
+
+  <!-- 标注 -->
+  <line x1="348" y1="620" x2="366" y2="620" stroke="#94a3b8"/>
+  <text x="14" y="700" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">吸底条补 env(safe-area-inset-bottom)，手势条上方仍可点击</text>
+</svg>

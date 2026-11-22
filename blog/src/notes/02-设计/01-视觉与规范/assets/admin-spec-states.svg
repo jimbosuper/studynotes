@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="460" viewBox="0 0 960 460" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <rect width="960" height="460" fill="#f8fafc"/>
+  <text x="24" y="28" font-size="13" font-weight="600" fill="#1f2937">列表页的四种状态：加载、首次空、筛选空、页面错误</text>
+
+  <!-- 1 加载 -->
+  <rect x="24" y="44" width="440" height="188" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="66" font-size="10" fill="#94a3b8">① 加载中 · 骨架屏保持真实布局</text>
+  <rect x="40" y="78" width="120" height="12" rx="4" fill="#f1f5f9"/>
+  <rect x="360" y="76" width="88" height="18" rx="4" fill="#eff6ff"/>
+  <rect x="40" y="106" width="408" height="24" rx="4" fill="#f8fafc"/>
+  <rect x="40" y="140" width="408" height="16" rx="4" fill="#f1f5f9"/>
+  <rect x="40" y="164" width="408" height="16" rx="4" fill="#f1f5f9" opacity="0.8"/>
+  <rect x="40" y="188" width="408" height="16" rx="4" fill="#f1f5f9" opacity="0.6"/>
+  <rect x="40" y="212" width="408" height="16" rx="4" fill="#f1f5f9" opacity="0.4"/>
+
+  <!-- 2 首次空 -->
+  <rect x="496" y="44" width="440" height="188" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="512" y="66" font-size="10" fill="#94a3b8">② 首次空 · 说明 + 主操作</text>
+  <rect x="678" y="86" width="76" height="52" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="700" y="100" width="32" height="4" rx="2" fill="#cbd5e1"/>
+  <rect x="700" y="112" width="24" height="4" rx="2" fill="#e2e8f0"/>
+  <rect x="700" y="124" width="28" height="4" rx="2" fill="#e2e8f0"/>
+  <text x="672" y="162" font-size="12" font-weight="600" fill="#1f2937">还没有工单</text>
+  <text x="590" y="180" font-size="10" fill="#94a3b8">监控告警会自动生成工单，也可以手动创建第一条。</text>
+  <rect x="660" y="194" width="112" height="26" rx="6" fill="#2563eb"/>
+  <text x="676" y="211" font-size="11" fill="#ffffff">新建工单</text>
+
+  <!-- 3 筛选空 -->
+  <rect x="24" y="244" width="440" height="188" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="266" font-size="10" fill="#94a3b8">③ 筛选空 · 说明 + 保留条件 + 清除</text>
+  <text x="76" y="298" font-size="12" font-weight="600" fill="#1f2937">没有符合条件的工单</text>
+  <text x="76" y="316" font-size="10" fill="#94a3b8">当前筛选：状态「待处理」、优先级「高」、负责人「王芳」</text>
+  <rect x="76" y="328" width="108" height="22" rx="11" fill="#eff6ff"/>
+  <text x="90" y="343" font-size="10" fill="#1d4ed8">状态：待处理 ×</text>
+  <rect x="192" y="328" width="96" height="22" rx="11" fill="#eff6ff"/>
+  <text x="206" y="343" font-size="10" fill="#1d4ed8">优先级：高 ×</text>
+  <rect x="296" y="328" width="104" height="22" rx="11" fill="#eff6ff"/>
+  <text x="310" y="343" font-size="10" fill="#1d4ed8">负责人：王芳 ×</text>
+  <rect x="76" y="364" width="96" height="26" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="90" y="381" font-size="11" fill="#2563eb">清除筛选</text>
+  <text x="184" y="381" font-size="11" fill="#64748b">调整条件后重试</text>
+  <text x="76" y="414" font-size="9" fill="#94a3b8">不要写成「暂无数据」：用户会以为系统里真的没有工单</text>
+
+  <!-- 4 页面错误 -->
+  <rect x="496" y="244" width="440" height="188" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="512" y="266" font-size="10" fill="#94a3b8">④ 页面错误 · 原因 + 重试 + 错误码</text>
+  <circle cx="716" cy="300" r="14" fill="#fef2f2"/>
+  <text x="710" y="305" font-size="14" fill="#b91c1c">!</text>
+  <text x="590" y="334" font-size="12" font-weight="600" fill="#1f2937">工单列表加载失败</text>
+  <text x="566" y="352" font-size="10" fill="#64748b">可能是网络中断或服务暂时不可用，已自动重试 3 次。</text>
+  <rect x="604" y="364" width="96" height="26" rx="6" fill="#2563eb"/>
+  <text x="622" y="381" font-size="11" fill="#ffffff">重新加载</text>
+  <rect x="708" y="364" width="84" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="722" y="381" font-size="11" fill="#475569">返回工作台</text>
+  <text x="566" y="412" font-size="9" fill="#94a3b8">错误码 E-503-20261113-0421</text>
+  <text x="698" y="412" font-size="9" fill="#2563eb">复制</text>
+
+  <text x="24" y="452" font-size="9" fill="#94a3b8">四态在设计稿阶段就要画全，走查时逐页核对；无权限态单独设计，不与错误态合并。</text>
+</svg>

@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <rect width="960" height="520" fill="#f8fafc"/>
+  <text x="24" y="28" font-size="13" font-weight="600" fill="#1f2937">反馈与恢复：撤销、草稿、部分成功、结果未知</text>
+
+  <!-- ① 撤销 -->
+  <rect x="24" y="44" width="440" height="208" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="66" font-size="10" fill="#94a3b8">① 撤销关闭 · 立即执行 + 8 秒可回滚</text>
+  <rect x="40" y="78" width="408" height="82" rx="6" fill="#f8fafc"/>
+  <text x="56" y="100" font-size="10" fill="#94a3b8">T-20261113-042</text>
+  <rect x="360" y="88" width="56" height="18" rx="9" fill="#f1f5f9"/>
+  <text x="368" y="101" font-size="9" fill="#475569">已关闭</text>
+  <text x="56" y="120" font-size="11" fill="#1f2937">核心交换机端口抖动</text>
+  <text x="56" y="138" font-size="9" fill="#94a3b8">关闭人 李明 · 14:32:08 · 客户已收到关单通知</text>
+
+  <rect x="56" y="166" width="376" height="48" rx="6" fill="#1f2937"/>
+  <text x="72" y="185" font-size="10" fill="#f8fafc">工单已关闭，客户将收到通知</text>
+  <text x="72" y="200" font-size="9" fill="#cbd5e1">8 秒内可撤销，之后需主管审批恢复</text>
+  <text x="390" y="196" font-size="10" font-weight="600" fill="#93c5fd">撤销</text>
+  <rect x="56" y="208" width="376" height="3" rx="1.5" fill="#334155"/>
+  <rect x="56" y="208" width="250" height="3" rx="1.5" fill="#60a5fa"/>
+  <text x="40" y="240" font-size="9" fill="#94a3b8">软删除 + 服务端保留恢复能力；不用延迟 8 秒才提交，避免关页丢状态</text>
+
+  <!-- ② 草稿 -->
+  <rect x="496" y="44" width="440" height="208" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="512" y="66" font-size="10" fill="#94a3b8">② 草稿 · 自动保存不打断输入</text>
+  <rect x="512" y="78" width="408" height="126" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="524" y="98" font-size="10" font-weight="600" fill="#1f2937">回复客户</text>
+  <circle cx="762" cy="94" r="3" fill="#16a34a"/>
+  <text x="770" y="98" font-size="9" fill="#16a34a">已保存 14:32</text>
+  <text x="524" y="120" font-size="10" fill="#475569">已确认 G1/0/24 端口 err-disable，备件 14:00 到达，</text>
+  <text x="524" y="136" font-size="10" fill="#475569">更换后我们会立即复测并同步结果。</text>
+  <line x1="524" y1="150" x2="908" y2="150" stroke="#f1f5f9"/>
+  <text x="524" y="168" font-size="9" fill="#94a3b8">Cmd/Ctrl + Enter 发送 · 附件 1 · 内部备注</text>
+  <text x="524" y="184" font-size="9" fill="#2563eb">插入处理进度模板</text>
+  <text x="512" y="230" font-size="9" fill="#94a3b8">每 30 秒或失焦保存；保存失败时改为就地提示，不弹成功 toast</text>
+
+  <!-- ③ 部分成功 -->
+  <rect x="24" y="270" width="440" height="214" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="292" font-size="10" fill="#94a3b8">③ 批量结果 · 部分成功是常态</text>
+  <rect x="40" y="302" width="96" height="44" rx="6" fill="#ecfdf5"/>
+  <text x="52" y="322" font-size="9" fill="#166534">成功</text>
+  <text x="52" y="338" font-size="14" font-weight="600" fill="#166534">8</text>
+  <rect x="144" y="302" width="96" height="44" rx="6" fill="#fef2f2"/>
+  <text x="156" y="322" font-size="9" fill="#b91c1c">失败</text>
+  <text x="156" y="338" font-size="14" font-weight="600" fill="#b91c1c">2</text>
+  <rect x="248" y="302" width="96" height="44" rx="6" fill="#f8fafc"/>
+  <text x="260" y="322" font-size="9" fill="#64748b">跳过</text>
+  <text x="260" y="338" font-size="14" font-weight="600" fill="#475569">1</text>
+  <text x="360" y="326" font-size="9" fill="#64748b">共 11 条</text>
+  <text x="360" y="340" font-size="9" fill="#64748b">用时 1.8s</text>
+
+  <text x="40" y="368" font-size="9" fill="#b91c1c">●</text>
+  <text x="52" y="368" font-size="10" fill="#1f2937">T-20261113-031 状态已变更，请刷新后重试</text>
+  <text x="40" y="390" font-size="9" fill="#b91c1c">●</text>
+  <text x="52" y="390" font-size="10" fill="#1f2937">T-20261112-118 无权限：不在你的技能组</text>
+  <line x1="40" y1="404" x2="448" y2="404" stroke="#f1f5f9"/>
+  <rect x="40" y="416" width="100" height="26" rx="5" fill="#2563eb"/>
+  <text x="52" y="433" font-size="10" fill="#ffffff">只重试失败项</text>
+  <text x="152" y="433" font-size="10" fill="#2563eb">导出失败明细</text>
+  <text x="40" y="466" font-size="9" fill="#94a3b8">不重跑整批；成功项已生效，失败项保留原因与单条重试</text>
+
+  <!-- ④ 结果未知 -->
+  <rect x="496" y="270" width="440" height="214" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="512" y="292" font-size="10" fill="#94a3b8">④ 超时 · 结果未知不等于失败</text>
+  <rect x="512" y="302" width="408" height="144" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <circle cx="536" cy="326" r="10" fill="#fffbeb"/>
+  <text x="532" y="330" font-size="11" font-weight="600" fill="#92400e">!</text>
+  <text x="556" y="330" font-size="11" font-weight="600" fill="#1f2937">回复已发出，结果确认中</text>
+  <text x="528" y="354" font-size="10" fill="#475569">网络超时，服务端可能已处理。请勿重复提交，</text>
+  <text x="528" y="370" font-size="10" fill="#475569">可查询结果后再决定是否重试。</text>
+  <rect x="528" y="384" width="84" height="24" rx="5" fill="#2563eb"/>
+  <text x="542" y="400" font-size="10" fill="#ffffff">查询结果</text>
+  <rect x="620" y="384" width="72" height="24" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="634" y="400" font-size="10" fill="#475569">稍后再查</text>
+  <text x="528" y="430" font-size="9" fill="#94a3b8">幂等键 8f3a…c21 · 请求时间 14:32:08 · 错误码 E-504-0912</text>
+  <text x="512" y="468" font-size="9" fill="#94a3b8">写操作不自动重试；重试沿用同一幂等键，避免重复回复</text>
+</svg>

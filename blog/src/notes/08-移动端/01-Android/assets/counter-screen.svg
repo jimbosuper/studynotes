@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640" viewBox="0 0 360 640">
+  <rect width="360" height="640" fill="#f8fafc"/>
+  <text x="16" y="24" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">计数器 App 效果</text>
+
+  <!-- 手机外框 -->
+  <rect x="30" y="44" width="300" height="560" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="130" y="56" width="100" height="8" rx="4" fill="#e2e8f0"/>
+
+  <!-- 状态栏 -->
+  <text x="52" y="88" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">9:41</text>
+  <rect x="260" y="80" width="18" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="284" y="80" width="24" height="8" rx="2" fill="#cbd5e1"/>
+
+  <!-- 标题 -->
+  <text x="52" y="132" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#1f2937">计数器</text>
+
+  <!-- 计数卡片 -->
+  <rect x="52" y="176" width="256" height="180" rx="16" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="180" y="268" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="18" fill="#1e3a8a" text-anchor="middle">点击次数：3</text>
+
+  <!-- 按钮 -->
+  <rect x="96" y="404" width="168" height="52" rx="12" fill="#2563eb"/>
+  <text x="180" y="437" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="16" fill="#ffffff" text-anchor="middle">点一下</text>
+
+  <text x="52" y="508" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">旋转屏幕后数字保持：3</text>
+  <text x="52" y="532" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">进程被回收后从 SavedStateHandle 恢复</text>
+</svg>

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="620" viewBox="0 0 960 620">
+  <rect width="960" height="620" fill="#eef2f7"/>
+
+  <rect x="0" y="0" width="960" height="36" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="16" y="23" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#64748b">Figma · orders-admin · 组件 / 订单卡片</text>
+  <text x="820" y="23" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">分支：feat/order-card</text>
+
+  <rect x="0" y="36" width="200" height="584" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="16" y="60" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">图层</text>
+  <text x="16" y="86" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">▾ ▢ 订单列表</text>
+  <text x="34" y="110" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1d4ed8">⬡ 订单卡片</text>
+  <text x="52" y="134" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">▢ 标题行</text>
+  <text x="52" y="158" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">⬡ 信息两列</text>
+  <text x="52" y="182" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#6d28d9">◆ 发货按钮</text>
+  <text x="16" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">⬡ = Auto Layout</text>
+  <text x="16" y="240" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">◆ = 组件实例</text>
+
+  <rect x="744" y="36" width="216" height="584" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="760" y="64" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">自动布局</text>
+  <text x="760" y="92" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">方向</text>
+  <rect x="852" y="78" width="92" height="24" rx="6" fill="#f1f5f9"/>
+  <text x="866" y="94" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">垂直排列</text>
+  <text x="760" y="126" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">间距</text>
+  <rect x="852" y="112" width="92" height="24" rx="6" fill="#f1f5f9"/>
+  <text x="892" y="128" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937" text-anchor="middle">12</text>
+  <text x="760" y="160" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">内边距</text>
+  <rect x="852" y="146" width="92" height="24" rx="6" fill="#f1f5f9"/>
+  <text x="892" y="162" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937" text-anchor="middle">16</text>
+  <text x="760" y="194" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">调整尺寸</text>
+  <rect x="852" y="180" width="92" height="24" rx="6" fill="#f1f5f9"/>
+  <text x="862" y="196" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">Hug 高 / Fill 宽</text>
+
+  <text x="760" y="240" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">填充</text>
+  <rect x="760" y="252" width="14" height="14" rx="3" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="782" y="264" font-family="SFMono-Regular, Consolas, monospace" font-size="10" fill="#1f2937">color/surface/card</text>
+
+  <text x="760" y="300" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">布局</text>
+  <text x="760" y="322" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">最小高度 280</text>
+  <text x="760" y="340" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">换行：关（两列用嵌套）</text>
+
+  <rect x="280" y="120" width="380" height="280" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="296" y="136" width="348" height="248" rx="4" fill="none" stroke="#f24e1e" stroke-dasharray="4 3"/>
+  <rect x="462" y="128" width="28" height="16" rx="3" fill="#f24e1e"/>
+  <text x="476" y="140" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">16</text>
+  <rect x="268" y="252" width="28" height="16" rx="3" fill="#f24e1e"/>
+  <text x="282" y="264" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">16</text>
+
+  <text x="304" y="166" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#1f2937">SO-20261113-001</text>
+  <rect x="556" y="150" width="56" height="22" rx="11" fill="#fffbeb"/>
+  <text x="568" y="165" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#92400e">待发货</text>
+  <rect x="664" y="170" width="28" height="16" rx="3" fill="#f24e1e"/>
+  <text x="678" y="182" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">12</text>
+
+  <text x="304" y="204" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">客户</text>
+  <text x="304" y="224" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">张三</text>
+  <text x="470" y="204" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">金额</text>
+  <text x="470" y="224" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">¥499.00</text>
+  <rect x="664" y="232" width="28" height="16" rx="3" fill="#f24e1e"/>
+  <text x="678" y="244" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">12</text>
+
+  <line x1="304" y1="246" x2="644" y2="246" stroke="#e2e8f0"/>
+
+  <text x="304" y="276" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">交付日期</text>
+  <text x="304" y="296" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">2026-11-20</text>
+  <text x="470" y="276" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">仓库</text>
+  <text x="470" y="296" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">华东一仓</text>
+
+  <rect x="304" y="336" width="72" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="326" y="358" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">取消</text>
+  <rect x="372" y="346" width="16" height="16" rx="3" fill="#f24e1e"/>
+  <text x="380" y="358" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">8</text>
+  <rect x="384" y="336" width="88" height="36" rx="6" fill="#2563eb"/>
+  <text x="416" y="358" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">发货</text>
+
+  <text x="280" y="440" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">订单卡片：垂直 Auto Layout · 间距 12 · 内边距 16 · 高度 Hug · 宽度 Fill</text>
+  <text x="280" y="460" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">红色虚线 = Auto Layout 内边距；红色标签 = 间距值（Figma 悬停可见）</text>
+
+  <text x="200" y="560" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">两列信息不靠手摆：先做一行“标签 + 值”的嵌套水平 Auto Layout，再两列嵌套进外层</text>
+  <text x="200" y="580" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">按钮高度 36px 为表格内操作行；表单主按钮按 44px 用另一个变体</text>
+</svg>

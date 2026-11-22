@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="620" viewBox="0 0 920 620">
+  <rect width="920" height="620" fill="#f8fafc"/>
+  <text x="24" y="24" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">订单工作台 · Next 16 迁移后效果</text>
+
+  <!-- 侧边栏 -->
+  <rect x="24" y="38" width="196" height="558" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <circle cx="52" cy="70" r="10" fill="#dbeafe"/>
+  <text x="72" y="75" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">运营后台</text>
+
+  <rect x="36" y="98" width="172" height="34" rx="6" fill="#eff6ff"/>
+  <text x="54" y="120" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1d4ed8">订单</text>
+  <text x="54" y="156" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">客户</text>
+  <text x="54" y="188" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">库存</text>
+  <text x="54" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">对账</text>
+  <text x="54" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">设置</text>
+
+  <rect x="36" y="520" width="172" height="56" rx="6" fill="#f8fafc"/>
+  <text x="52" y="542" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">缓存状态</text>
+  <text x="52" y="562" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">orders · 1 分钟</text>
+
+  <!-- 顶部工具栏 -->
+  <rect x="236" y="38" width="660" height="56" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="256" y="72" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="17" font-weight="600" fill="#1f2937">订单</text>
+  <text x="300" y="72" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">共 50 条 · 服务端渲染</text>
+
+  <rect x="660" y="54" width="120" height="26" rx="13" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="676" y="71" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">搜索订单号</text>
+  <rect x="792" y="54" width="84" height="26" rx="6" fill="#2563eb"/>
+  <text x="812" y="71" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">导出</text>
+
+  <!-- 筛选 -->
+  <rect x="236" y="108" width="660" height="44" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="250" y="118" width="52" height="24" rx="12" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="264" y="134" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">全部</text>
+  <text x="318" y="134" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">待付款</text>
+  <text x="378" y="134" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">已付款</text>
+  <text x="438" y="134" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">已发货</text>
+  <text x="498" y="134" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">已取消</text>
+  <text x="800" y="134" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">状态写入 URL</text>
+
+  <!-- 表格 -->
+  <rect x="236" y="166" width="660" height="430" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="236" y="166" width="660" height="40" rx="10" fill="#f8fafc"/>
+  <text x="256" y="191" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">订单号</text>
+  <text x="382" y="191" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">客户</text>
+  <text x="556" y="191" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">金额</text>
+  <text x="700" y="191" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">状态</text>
+  <text x="826" y="191" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">操作</text>
+
+  <!-- 行 1 -->
+  <text x="256" y="232" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">SO-20261113-001</text>
+  <text x="382" y="232" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">杭州云启贸易</text>
+  <text x="556" y="232" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">¥499.00</text>
+  <rect x="694" y="216" width="70" height="22" rx="11" fill="#fffbeb"/>
+  <text x="710" y="231" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#92400e">待付款</text>
+  <text x="826" y="232" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">保存</text>
+  <line x1="248" y1="250" x2="884" y2="250" stroke="#f1f5f9"/>
+
+  <!-- 行 2 -->
+  <text x="256" y="282" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">SO-20261113-002</text>
+  <text x="382" y="282" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">宁波恒晟电子</text>
+  <text x="556" y="282" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">¥1,280.00</text>
+  <rect x="694" y="266" width="70" height="22" rx="11" fill="#ecfdf5"/>
+  <text x="710" y="281" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">已付款</text>
+  <text x="826" y="282" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">保存</text>
+  <line x1="248" y1="300" x2="884" y2="300" stroke="#f1f5f9"/>
+
+  <!-- 行 3 -->
+  <text x="256" y="332" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">SO-20261113-003</text>
+  <text x="382" y="332" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">苏州明远物流</text>
+  <text x="556" y="332" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">¥760.00</text>
+  <rect x="694" y="316" width="70" height="22" rx="11" fill="#eff6ff"/>
+  <text x="710" y="331" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">已发货</text>
+  <text x="826" y="332" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">保存</text>
+  <line x1="248" y1="350" x2="884" y2="350" stroke="#f1f5f9"/>
+
+  <!-- 行 4（乐观更新中） -->
+  <text x="256" y="382" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">SO-20261113-004</text>
+  <text x="382" y="382" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">合肥锐科仪器</text>
+  <text x="556" y="382" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">¥2,150.00</text>
+  <rect x="694" y="366" width="70" height="22" rx="11" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="710" y="381" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">已付款</text>
+  <text x="826" y="382" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">保存中</text>
+  <line x1="248" y1="400" x2="884" y2="400" stroke="#f1f5f9"/>
+
+  <!-- 行 5 -->
+  <text x="256" y="432" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">SO-20261112-018</text>
+  <text x="382" y="432" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">上海衡通供应链</text>
+  <text x="556" y="432" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">¥318.00</text>
+  <rect x="694" y="416" width="70" height="22" rx="11" fill="#f8fafc"/>
+  <text x="710" y="431" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#334155">已取消</text>
+  <text x="826" y="432" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">保存</text>
+  <line x1="248" y1="450" x2="884" y2="450" stroke="#f1f5f9"/>
+
+  <!-- 行 6 -->
+  <text x="256" y="482" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">SO-20261112-017</text>
+  <text x="382" y="482" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">无锡华瑞精工</text>
+  <text x="556" y="482" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">¥5,600.00</text>
+  <rect x="694" y="466" width="70" height="22" rx="11" fill="#ecfdf5"/>
+  <text x="710" y="481" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">已付款</text>
+  <text x="826" y="482" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">保存</text>
+  <line x1="248" y1="500" x2="884" y2="500" stroke="#f1f5f9"/>
+
+  <text x="256" y="528" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">列表由服务端渲染，首包不含业务数据请求；筛选状态写在 URL，刷新与分享后结果一致。</text>
+
+  <!-- 提示条 -->
+  <rect x="236" y="556" width="360" height="40" rx="8" fill="#ecfdf5" stroke="#86efac"/>
+  <circle cx="258" cy="576" r="7" fill="#22c55e"/>
+  <text x="274" y="580" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#166534">状态已更新，缓存标签 orders 已失效</text>
+
+  <text x="24" y="612" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">Server Action 提交后 updateTag 生效，行内状态在 300ms 内切换为服务端结果</text>
+</svg>

@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="700" viewBox="0 0 920 700">
+  <rect width="920" height="700" fill="#f8fafc"/>
+  <text x="24" y="24" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">采购申请单 · RHF + Zod 重写后</text>
+
+  <!-- 页头 -->
+  <rect x="24" y="38" width="872" height="56" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="44" y="72" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="17" font-weight="600" fill="#1f2937">新建采购申请</text>
+  <text x="210" y="72" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">草稿自动保存 · 最近保存 10:46</text>
+  <rect x="760" y="52" width="60" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="774" y="69" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">取消</text>
+  <rect x="830" y="52" width="46" height="26" rx="6" fill="#2563eb"/>
+  <text x="843" y="69" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">提交</text>
+
+  <!-- 错误摘要 -->
+  <rect x="24" y="106" width="872" height="52" rx="8" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="44" y="128" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#b91c1c">有 2 处需要修改</text>
+  <text x="44" y="146" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#b91c1c">· 申请理由至少 10 个字　· 第 2 行单价不能为负</text>
+  <text x="838" y="138" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#dc2626">已聚焦</text>
+
+  <!-- 基本信息 -->
+  <rect x="24" y="170" width="560" height="236" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="44" y="196" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">基本信息</text>
+
+  <text x="44" y="222" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">标题 <tspan fill="#dc2626">*</tspan></text>
+  <rect x="44" y="230" width="240" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="56" y="250" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">Q4 产线备件采购</text>
+
+  <text x="304" y="222" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">部门 <tspan fill="#dc2626">*</tspan></text>
+  <rect x="304" y="230" width="240" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="316" y="250" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">生产一部</text>
+
+  <text x="44" y="288" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">到货日期 <tspan fill="#dc2626">*</tspan></text>
+  <rect x="44" y="296" width="240" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="56" y="316" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">2026-12-05</text>
+
+  <text x="304" y="288" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">申请理由 <tspan fill="#dc2626">*</tspan></text>
+  <rect x="304" y="296" width="240" height="72" rx="6" fill="#ffffff" stroke="#dc2626"/>
+  <text x="316" y="316" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">现有备件库存不足</text>
+  <text x="316" y="356" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#dc2626">申请理由至少 10 个字</text>
+
+  <text x="44" y="386" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">已填写 14 个字段 · 校验模式 onTouched，离开字段后即时校验</text>
+
+  <!-- 附件 -->
+  <rect x="600" y="170" width="296" height="236" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="620" y="196" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">附件</text>
+  <rect x="620" y="208" width="256" height="96" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-dasharray="5 4"/>
+  <text x="700" y="248" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">点击或拖拽上传</text>
+  <text x="676" y="268" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">PDF / PNG，单个不超过 5MB</text>
+
+  <rect x="620" y="314" width="256" height="34" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="628" y="321" width="20" height="20" rx="3" fill="#fef2f2"/>
+  <text x="633" y="335" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#b91c1c">PDF</text>
+  <text x="656" y="335" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">报价单-华瑞.pdf</text>
+  <text x="824" y="335" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">移除</text>
+  <text x="620" y="368" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">附件字段用 Controller 接管，值类型是 FileList</text>
+  <text x="620" y="386" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">aria-describedby 关联提示与错误</text>
+
+  <!-- 明细 -->
+  <rect x="24" y="422" width="872" height="188" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="44" y="448" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">采购明细</text>
+  <text x="760" y="448" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">合计 ¥4,420.00</text>
+
+  <rect x="44" y="462" width="832" height="30" rx="4" fill="#f8fafc"/>
+  <text x="56" y="481" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">物料</text>
+  <text x="356" y="481" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">数量</text>
+  <text x="486" y="481" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">单价</text>
+  <text x="626" y="481" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">小计</text>
+  <text x="806" y="481" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">操作</text>
+
+  <!-- 行 1 -->
+  <rect x="48" y="502" width="292" height="26" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="58" y="519" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">SKU-8841 伺服电机</text>
+  <text x="364" y="519" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">2</text>
+  <text x="486" y="519" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">¥1,200.00</text>
+  <text x="626" y="519" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">¥2,400.00</text>
+  <text x="808" y="519" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">上移</text>
+  <text x="850" y="519" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">删除</text>
+  <line x1="44" y1="536" x2="876" y2="536" stroke="#f1f5f9"/>
+
+  <!-- 行 2 错误 -->
+  <rect x="48" y="544" width="292" height="26" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="58" y="561" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">SKU-9026 编码器线缆</text>
+  <text x="364" y="561" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">4</text>
+  <rect x="478" y="544" width="96" height="26" rx="5" fill="#fef2f2" stroke="#dc2626"/>
+  <text x="488" y="561" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#b91c1c">-80</text>
+  <text x="626" y="561" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">—</text>
+  <text x="808" y="561" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">上移</text>
+  <text x="850" y="561" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">删除</text>
+  <text x="478" y="586" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#dc2626">第 2 行单价不能为负</text>
+
+  <!-- 行 3 -->
+  <rect x="48" y="594" width="292" height="26" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="58" y="611" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">SKU-7712 继电器</text>
+  <text x="364" y="611" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">10</text>
+  <text x="486" y="611" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">¥202.00</text>
+  <text x="626" y="611" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">¥2,020.00</text>
+  <text x="808" y="611" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">上移</text>
+  <text x="850" y="611" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">删除</text>
+
+  <rect x="44" y="628" width="92" height="24" rx="6" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="58" y="644" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">+ 添加一行</text>
+  <text x="156" y="644" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">key 使用 field.id，删除中间行后值不错位</text>
+
+  <text x="24" y="672" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">错误内联显示并自动聚焦；提交失败时服务端 fieldErrors 回填到对应字段</text>
+  <text x="24" y="690" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">26 个字段全部非受控注册，输入长文本不再触发整表单重渲染</text>
+</svg>

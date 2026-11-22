@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="320" viewBox="0 0 720 320">
+  <rect width="720" height="320" fill="#f8fafc"/>
+  <text x="40" y="34" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="16" font-weight="600" fill="#1f2937">间距令牌与 12 列栅格</text>
+
+  <text x="40" y="68" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#64748b">4 / 8 / 12 / 16 / 24 / 32 / 48</text>
+  <g font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">
+    <rect x="40" y="82" width="4" height="24" fill="#bfdbfe"/><text x="52" y="99">4</text>
+    <rect x="40" y="116" width="8" height="24" fill="#93c5fd"/><text x="56" y="133">8</text>
+    <rect x="40" y="150" width="12" height="24" fill="#60a5fa"/><text x="60" y="167">12</text>
+    <rect x="40" y="184" width="16" height="24" fill="#3b82f6"/><text x="64" y="201">16</text>
+    <rect x="40" y="218" width="24" height="24" fill="#2563eb"/><text x="72" y="235">24</text>
+    <rect x="110" y="82" width="32" height="24" fill="#2563eb"/><text x="150" y="99">32</text>
+    <rect x="110" y="116" width="48" height="24" fill="#1d4ed8"/><text x="166" y="133">48</text>
+  </g>
+
+  <text x="300" y="68" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#64748b">12 列栅格（示意）</text>
+  <g>
+    <rect x="300" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="334" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="368" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="402" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="436" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="470" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="504" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="538" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="572" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="606" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="640" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+    <rect x="674" y="82" width="10" height="180" rx="2" fill="#dbeafe" stroke="#bfdbfe"/>
+  </g>
+  <text x="300" y="286" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#64748b">内容区 8 列 + 侧栏 4 列，区块间距用 24 / 32 / 48</text>
+</svg>

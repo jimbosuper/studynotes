@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440">
+  <rect width="720" height="440" fill="#f8fafc"/>
+  <text x="24" y="26" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">购物车与登录态联动（store 持久化后刷新不丢失）</text>
+
+  <!-- 顶栏 -->
+  <rect x="24" y="42" width="672" height="52" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="44" y="73" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#1f2937">运营后台</text>
+  <rect x="536" y="54" width="64" height="28" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="552" y="72" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">购物车 3</text>
+  <rect x="608" y="54" width="72" height="28" rx="14" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="624" y="72" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">王敏 · admin</text>
+
+  <!-- 购物车 -->
+  <rect x="24" y="106" width="672" height="274" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="44" y="136" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" font-weight="600" fill="#1f2937">购物车（3 件）</text>
+
+  <rect x="44" y="152" width="632" height="44" rx="6" fill="#f8fafc"/>
+  <text x="60" y="178" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">机械键盘 K870</text>
+  <text x="420" y="178" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">¥499.00 × 1</text>
+  <text x="640" y="178" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937" text-anchor="end">¥499.00</text>
+
+  <rect x="44" y="202" width="632" height="44" rx="6" fill="#f8fafc"/>
+  <text x="60" y="228" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">显示器 27 寸</text>
+  <text x="420" y="228" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">¥1599.00 × 1</text>
+  <text x="640" y="228" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937" text-anchor="end">¥1599.00</text>
+
+  <rect x="44" y="252" width="632" height="44" rx="6" fill="#f8fafc"/>
+  <text x="60" y="278" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">USB-C 扩展坞</text>
+  <text x="420" y="278" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">¥329.00 × 1</text>
+  <text x="640" y="278" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937" text-anchor="end">¥329.00</text>
+
+  <line x1="44" y1="312" x2="676" y2="312" stroke="#e2e8f0"/>
+  <text x="44" y="340" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">合计 ¥2427.00</text>
+  <text x="44" y="360" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">total 来自 cart store 的 computed，三处组件共用一个计算</text>
+
+  <rect x="560" y="322" width="116" height="34" rx="6" fill="#2563eb"/>
+  <text x="588" y="344" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">结算</text>
+
+  <!-- 持久化说明 -->
+  <rect x="24" y="392" width="672" height="30" rx="6" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="44" y="411" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">token → localStorage（pick: ['token']）；购物车 → sessionStorage；profile 每次启动重拉</text>
+</svg>

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="484" viewBox="0 0 720 484">
+  <rect width="720" height="484" fill="#f8fafc"/>
+  <text x="24" y="26" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">案例交付物：审批详情抽屉的关键帧板，标注帧位、令牌与总时长</text>
+
+  <!-- 关键帧三格 -->
+  <rect x="24" y="42" width="672" height="156" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">关键帧（抽屉 240ms，内容 480ms 全部就绪）</text>
+
+  <!-- 帧 1 -->
+  <rect x="40" y="78" width="190" height="104" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="48" y="94" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8">0ms · 列表初始</text>
+  <rect x="48" y="102" width="174" height="8" rx="4" fill="#e2e8f0"/>
+  <rect x="48" y="118" width="140" height="7" rx="3" fill="#eef2f7"/>
+  <rect x="48" y="132" width="160" height="7" rx="3" fill="#eef2f7"/>
+  <rect x="48" y="146" width="120" height="7" rx="3" fill="#eef2f7"/>
+  <rect x="156" y="160" width="66" height="16" rx="4" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="164" y="171" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="8" fill="#1d4ed8">查看详情</text>
+
+  <!-- 帧 2 -->
+  <rect x="250" y="78" width="190" height="104" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="258" y="94" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8">80–320ms · 抽屉滑入</text>
+  <rect x="258" y="102" width="100" height="8" rx="4" fill="#e2e8f0"/>
+  <rect x="258" y="118" width="90" height="7" rx="3" fill="#eef2f7"/>
+  <rect x="258" y="132" width="96" height="7" rx="3" fill="#eef2f7"/>
+  <rect x="330" y="100" width="102" height="78" rx="5" fill="#ffffff" stroke="#93c5fd"/>
+  <text x="338" y="114" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="8" fill="#1e3a8a">审批详情</text>
+  <rect x="338" y="120" width="52" height="5" rx="2" fill="#dbeafe"/>
+  <rect x="338" y="130" width="72" height="5" rx="2" fill="#eff6ff"/>
+  <rect x="338" y="140" width="60" height="5" rx="2" fill="#eff6ff"/>
+  <rect x="338" y="156" width="40" height="12" rx="3" fill="#2563eb"/>
+  <path d="M314,140 L328,140" stroke="#f59e0b" stroke-width="1.5"/>
+
+  <!-- 帧 3 -->
+  <rect x="460" y="78" width="194" height="104" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="468" y="94" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8">480ms · 内容就绪</text>
+  <rect x="468" y="102" width="80" height="8" rx="4" fill="#e2e8f0"/>
+  <rect x="520" y="100" width="126" height="78" rx="5" fill="#ffffff" stroke="#93c5fd"/>
+  <text x="528" y="114" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="8" fill="#1e3a8a">审批详情</text>
+  <rect x="528" y="120" width="44" height="5" rx="2" fill="#dbeafe"/>
+  <rect x="528" y="130" width="70" height="5" rx="2" fill="#eff6ff"/>
+  <rect x="528" y="140" width="56" height="5" rx="2" fill="#eff6ff"/>
+  <rect x="528" y="150" width="30" height="5" rx="2" fill="#eff6ff"/>
+  <rect x="528" y="160" width="44" height="12" rx="3" fill="#2563eb"/>
+
+  <!-- 时间轴 -->
+  <rect x="24" y="210" width="672" height="220" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="234" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">时间轴（毫秒）</text>
+
+  <!-- 刻度 -->
+  <line x1="80" y1="250" x2="80" y2="400" stroke="#e2e8f0"/>
+  <line x1="177" y1="250" x2="177" y2="400" stroke="#f1f5f9"/>
+  <line x1="370" y1="250" x2="370" y2="400" stroke="#f1f5f9"/>
+  <line x1="467" y1="250" x2="467" y2="400" stroke="#f1f5f9"/>
+  <line x1="660" y1="250" x2="660" y2="400" stroke="#e2e8f0"/>
+  <text x="80" y="246" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">0</text>
+  <text x="177" y="246" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">80</text>
+  <text x="370" y="246" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">240</text>
+  <text x="467" y="246" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">320</text>
+  <text x="660" y="246" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">480</text>
+
+  <!-- 轨道 1 遮罩 -->
+  <text x="40" y="272" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">遮罩</text>
+  <rect x="80" y="260" width="290" height="16" rx="8" fill="#e2e8f0"/>
+  <text x="92" y="272" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#475569">fade 0 → 40% · 240ms · ease-out</text>
+
+  <!-- 轨道 2 抽屉 -->
+  <text x="40" y="308" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">抽屉</text>
+  <rect x="177" y="296" width="290" height="16" rx="8" fill="#3b82f6"/>
+  <text x="189" y="308" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#ffffff">位移 100% → 0 · 240ms · ease-out</text>
+
+  <!-- 轨道 3 内容交错：3 条各 160ms，按 40ms 错开，画成三条平行轨道避免重叠 -->
+  <text x="40" y="344" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">内容</text>
+  <text x="72" y="362" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#475569">3 条 · stagger 40ms · 各 160ms</text>
+  <rect x="370" y="324" width="194" height="8" rx="4" fill="#86efac"/>
+  <text x="378" y="331" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="8" fill="#166534">1</text>
+  <rect x="418" y="336" width="194" height="8" rx="4" fill="#4ade80"/>
+  <text x="426" y="343" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="8" fill="#166534">2</text>
+  <rect x="467" y="348" width="194" height="8" rx="4" fill="#16a34a"/>
+  <text x="475" y="355" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="8" fill="#ffffff">3</text>
+
+  <!-- 轨道 4 可交互：面板 320ms 落位后即可点击，内容交错不阻塞 -->
+  <text x="40" y="380" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">可交互</text>
+  <rect x="467" y="368" width="194" height="16" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="476" y="380" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#92400e">320ms 后按钮可点</text>
+
+  <!-- 底部说明 -->
+  <text x="24" y="452" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">令牌：--motion-duration-slow = 240ms · --motion-ease-out = cubic-bezier(0.2, 0, 0, 1) · stagger = 40ms · 遮罩 #0f172a / 40%</text>
+  <text x="24" y="470" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">交付内容：关键帧板 + 令牌名 + 降级方案，开发按板实现，不再靠猜。</text>
+</svg>

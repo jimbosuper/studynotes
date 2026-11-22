@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="480" viewBox="0 0 720 480">
+  <rect width="720" height="480" fill="#f8fafc"/>
+  <text x="24" y="26" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">用户管理页效果</text>
+
+  <!-- 左侧导航 -->
+  <rect x="24" y="42" width="132" height="390" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="70" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">运营后台</text>
+  <rect x="36" y="86" width="108" height="30" rx="6" fill="#eff6ff"/>
+  <text x="50" y="105" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1d4ed8">用户管理</text>
+  <text x="50" y="137" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">客户管理</text>
+  <text x="50" y="167" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">订单管理</text>
+  <text x="50" y="197" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">系统设置</text>
+
+  <!-- 顶部标题 -->
+  <text x="176" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="16" font-weight="600" fill="#1f2937">用户管理</text>
+  <text x="176" y="86" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">分页与搜索由 useTable / useSearchForm 提供</text>
+
+  <!-- 搜索工具栏 -->
+  <rect x="176" y="100" width="520" height="56" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="192" y="114" width="160" height="28" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="202" y="132" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">搜索姓名</text>
+  <rect x="364" y="114" width="110" height="28" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="374" y="132" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">全部角色</text>
+  <rect x="486" y="114" width="64" height="28" rx="6" fill="#2563eb"/>
+  <text x="502" y="132" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">查询</text>
+  <rect x="560" y="114" width="64" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="576" y="132" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">重置</text>
+
+  <!-- 表格 -->
+  <rect x="176" y="168" width="520" height="216" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="176" y="168" width="520" height="34" rx="8" fill="#f8fafc"/>
+  <text x="196" y="189" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">姓名</text>
+  <text x="300" y="189" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">角色</text>
+  <text x="400" y="189" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">状态</text>
+  <text x="500" y="189" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">创建时间</text>
+
+  <line x1="176" y1="230" x2="696" y2="230" stroke="#f1f5f9"/>
+  <text x="196" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">王敏</text>
+  <text x="300" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">管理员</text>
+  <rect x="400" y="207" width="42" height="18" rx="9" fill="#ecfdf5"/>
+  <text x="409" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">启用</text>
+  <text x="500" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">2026-10-02</text>
+
+  <line x1="176" y1="262" x2="696" y2="262" stroke="#f1f5f9"/>
+  <text x="196" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">李强</text>
+  <text x="300" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">成员</text>
+  <rect x="400" y="239" width="42" height="18" rx="9" fill="#ecfdf5"/>
+  <text x="409" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">启用</text>
+  <text x="500" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">2026-10-08</text>
+
+  <line x1="176" y1="294" x2="696" y2="294" stroke="#f1f5f9"/>
+  <text x="196" y="284" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">赵蕾</text>
+  <text x="300" y="284" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">成员</text>
+  <rect x="400" y="271" width="42" height="18" rx="9" fill="#fffbeb"/>
+  <text x="409" y="284" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#92400e">停用</text>
+  <text x="500" y="284" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">2026-10-15</text>
+
+  <line x1="176" y1="326" x2="696" y2="326" stroke="#f1f5f9"/>
+  <text x="196" y="316" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">周杰</text>
+  <text x="300" y="316" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">成员</text>
+  <rect x="400" y="303" width="42" height="18" rx="9" fill="#ecfdf5"/>
+  <text x="409" y="316" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">启用</text>
+  <text x="500" y="316" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">2026-10-21</text>
+
+  <line x1="176" y1="358" x2="696" y2="358" stroke="#f1f5f9"/>
+  <text x="196" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">陈静</text>
+  <text x="300" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">成员</text>
+  <rect x="400" y="335" width="42" height="18" rx="9" fill="#ecfdf5"/>
+  <text x="409" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">启用</text>
+  <text x="500" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">2026-11-01</text>
+
+  <!-- 分页 -->
+  <rect x="176" y="396" width="520" height="36" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="196" y="418" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">共 128 条</text>
+  <rect x="470" y="404" width="56" height="22" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="486" y="419" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">上一页</text>
+  <text x="538" y="419" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">1 / 7</text>
+  <rect x="584" y="404" width="56" height="22" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="600" y="419" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#475569">下一页</text>
+
+  <text x="24" y="462" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">搜索、表格、分页分别来自 useSearchForm 和 useTable，页面只负责组装</text>
+</svg>

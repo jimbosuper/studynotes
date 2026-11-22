@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440">
+  <rect width="720" height="440" fill="#f8fafc"/>
+  <text x="24" y="26" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">缓动曲线与时长阶梯：进入用 ease-out，退出用 ease-in，屏内移动用 ease-in-out</text>
+
+  <!-- 左：缓动曲线 -->
+  <rect x="24" y="42" width="332" height="372" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">缓动曲线（进度-时间）</text>
+
+  <!-- 坐标系 -->
+  <line x1="60" y1="90" x2="60" y2="340" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="60" y1="340" x2="330" y2="340" stroke="#cbd5e1" stroke-width="1"/>
+  <!-- 网格 -->
+  <line x1="60" y1="152" x2="330" y2="152" stroke="#f1f5f9" stroke-width="1"/>
+  <line x1="60" y1="215" x2="330" y2="215" stroke="#f1f5f9" stroke-width="1"/>
+  <line x1="60" y1="277" x2="330" y2="277" stroke="#f1f5f9" stroke-width="1"/>
+  <line x1="128" y1="90" x2="128" y2="340" stroke="#f1f5f9" stroke-width="1"/>
+  <line x1="195" y1="90" x2="195" y2="340" stroke="#f1f5f9" stroke-width="1"/>
+  <line x1="263" y1="90" x2="263" y2="340" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="330" y="358" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8" text-anchor="end">时间 →</text>
+  <text x="48" y="96" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8" text-anchor="end">进度</text>
+
+  <!-- linear -->
+  <path d="M60,340 L330,90" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" fill="none"/>
+  <!-- ease-out (0,0,0.2,1) -->
+  <path d="M60,340 C60,340 114,90 330,90" stroke="#2563eb" stroke-width="2.5" fill="none"/>
+  <!-- ease-in (0.4,0,1,1) -->
+  <path d="M60,340 C168,340 330,90 330,90" stroke="#d97706" stroke-width="2.5" fill="none"/>
+  <!-- ease-in-out (0.4,0,0.2,1) -->
+  <path d="M60,340 C168,340 114,90 330,90" stroke="#16a34a" stroke-width="2.5" fill="none"/>
+
+  <!-- 图例 -->
+  <circle cx="46" cy="376" r="4" fill="#2563eb"/>
+  <text x="56" y="380" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">ease-out 进入</text>
+  <circle cx="168" cy="376" r="4" fill="#d97706"/>
+  <text x="178" y="380" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">ease-in 退出</text>
+  <circle cx="46" cy="396" r="4" fill="#16a34a"/>
+  <text x="56" y="400" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">ease-in-out 屏内移动</text>
+  <circle cx="220" cy="396" r="4" fill="#94a3b8"/>
+  <text x="230" y="400" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">linear 仅循环</text>
+
+  <!-- 右：时长阶梯 -->
+  <rect x="372" y="42" width="324" height="372" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="388" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">时长阶梯（UI 动效）</text>
+
+  <text x="388" y="96" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">微反馈：hover、focus</text>
+  <rect x="388" y="102" width="60" height="12" rx="6" fill="#93c5fd"/>
+  <text x="454" y="112" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">120–150ms</text>
+
+  <text x="388" y="140" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">基础：开关、标签页切换</text>
+  <rect x="388" y="146" width="100" height="12" rx="6" fill="#60a5fa"/>
+  <text x="494" y="156" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">200ms</text>
+
+  <text x="388" y="184" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">容器：抽屉、弹层、展开</text>
+  <rect x="388" y="190" width="140" height="12" rx="6" fill="#3b82f6"/>
+  <text x="534" y="200" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">240–300ms</text>
+
+  <text x="388" y="228" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">场景：路由、大面积转场</text>
+  <rect x="388" y="234" width="190" height="12" rx="6" fill="#1d4ed8"/>
+  <text x="584" y="244" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">300–400ms</text>
+
+  <text x="388" y="272" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">一次性大场景：引导、空态</text>
+  <rect x="388" y="278" width="240" height="12" rx="6" fill="#1e3a8a"/>
+  <text x="634" y="288" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">400ms+</text>
+
+  <!-- 提示 -->
+  <rect x="388" y="316" width="292" height="80" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="402" y="340" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#92400e">低于 80ms 近似闪烁，人眼识别不到；</text>
+  <text x="402" y="360" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#92400e">超过 400ms 的 UI 反馈会被感知为“卡”。</text>
+  <text x="402" y="380" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#92400e">距离越长、面积越大，时长取阶梯中更长一档。</text>
+</svg>

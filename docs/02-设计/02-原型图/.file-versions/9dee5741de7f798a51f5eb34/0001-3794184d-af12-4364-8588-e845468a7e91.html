@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>妙妙屋 · 高保真静态原型</title>
+<style>
+  :root {
+    --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "PingFang SC", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+    --white: #ffffff;
+    --bg: #ffffff;
+    --bg-subtle: #f6f6f7;
+    --text: #3c3c43;
+    --text-78: rgba(60, 60, 67, 0.78);
+    --text-56: rgba(60, 60, 67, 0.56);
+    --brand: #2f845d;
+    --brand-hover: #43bc85;
+    --brand-solid: #3ca978;
+    --brand-tint: rgba(47, 132, 93, 0.08);
+    --brand-tint-strong: rgba(47, 132, 93, 0.14);
+    --border: #c2c2c4;
+    --divider: #e2e2e3;
+    --hover-tint: rgba(60, 60, 67, 0.05);
+
+    --gradient-text: linear-gradient(92deg, #0f9d6b 0%, #2f7df6 55%, #8b5cf6 100%);
+    --gradient-mark: linear-gradient(140deg, #0f9d6b, #2f7df6);
+
+    --glass-bg: rgba(255, 255, 255, 0.62);
+    --glass-blur: blur(8px);
+    --glass-shadow: 0 0 0 1px #c2c2c4, 0 1px 2px rgba(60, 60, 67, 0.04);
+    --card-hover-shadow: 0 0 0 1px #a9a9ad, 0 8px 20px rgba(60, 60, 67, 0.08);
+
+    --aurora-grid: rgba(60, 60, 67, 0.055);
+    --aurora-green: rgba(98, 220, 170, 0.28);
+    --aurora-blue: rgba(120, 180, 255, 0.22);
+    --aurora-purple: rgba(200, 150, 255, 0.16);
+
+    --fs-hero: 3.6rem;
+    --fs-sub: 1.6rem;
+    --fs-h1: 1.75rem;
+    --fs-h2: 1.25rem;
+    --fs-h3: 1.0625rem;
+    --fs-body: 1rem;
+    --fs-table: 0.875rem;
+    --fs-side: 0.8125rem;
+    --fs-group: 0.86rem;
+    --lh-body: 1.75;
+
+    --nav-h: 60px;
+    --side-w: 288px;
+    --content-max: 1080px;
+    --home-max: 1160px;
+    --toc-w: 256px;
+    --card-radius: 0.85rem;
+    --card-pad: 16px;
+    --btn-radius: 2rem;
+    --bar-h: 48px;
+    --avatar-size: 220px;
+
+    --stage-bg: #ececef;
+    --frame-shadow: 0 12px 40px rgba(30, 30, 40, 0.18);
+    --nav-bg: rgba(255, 255, 255, 0.82);
+    --avatar-grad: linear-gradient(145deg, rgba(98, 220, 170, 0.42), rgba(120, 180, 255, 0.34) 58%, rgba(200, 150, 255, 0.30));
+    --avatar-inner: rgba(255, 255, 255, 0.5);
+    --avatar-inner-ring: rgba(255, 255, 255, 0.6);
+    --avatar-shadow: 0 0 0 1px var(--border), 0 12px 32px rgba(60, 60, 67, 0.10);
+    --btn-shadow: 0 1px 2px rgba(47, 132, 93, 0.24);
+    --tab-active-bg: #2c2c31;
+    --shimmer-base: #f6f6f7;
+    --shimmer-sweep: #ececef;
+
+    --code-bg: #fbfbfc;
+    --code-text: #2f3138;
+    --code-line-no: #b4b4ba;
+    --tok-kw: #6d3fd6;
+    --tok-type: #1f66d0;
+    --tok-fn: #8a5a00;
+
+    --danger-text: #8c2f2f;
+    --danger-border: #e0b4b4;
+    --danger-bg: #fdf3f3;
+
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--stage-bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { color: var(--brand-hover); }
+
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ---------- 原型工具条 ---------- */
+
+  .app { height: 100dvh; display: flex; flex-direction: column; }
+
+  .proto-bar {
+    flex: 0 0 auto;
+    height: var(--bar-h);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 0 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--divider);
+    position: relative;
+    z-index: 50;
+  }
+
+  .proto-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-56);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .proto-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--brand);
+    flex: 0 0 auto;
+  }
+
+  .proto-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    margin: 0 auto;
+    background: var(--bg-subtle);
+    border-radius: 10px;
+  }
+
+  .proto-tab {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--text-78);
+    padding: 6px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.18s var(--ease), color 0.18s var(--ease);
+  }
+
+  .proto-tab:hover { color: var(--text); background: var(--hover-tint); }
+
+  .proto-tab.is-active {
+    background: var(--tab-active-bg);
+    color: var(--white);
+  }
+
+  .proto-device {
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    background: var(--bg-subtle);
+    border-radius: 10px;
+  }
+
+  .proto-device button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--text-78);
+    padding: 6px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.18s var(--ease), color 0.18s var(--ease);
+  }
+
+  .proto-device button:hover { color: var(--text); background: var(--hover-tint); }
+
+  .proto-device button.is-active {
+    background: var(--brand);
+    color: var(--white);
+  }
+
+  .stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    background: var(--stage-bg);
+  }
+
+  .app[data-device="mobile"] .stage { padding: 16px; }
+
+  .frame {
+    width: 100%;
+    max-width: 1440px;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: var(--bg);
+    container-type: inline-size;
+    position: relative;
+  }
+
+  .app[data-device="mobile"] .frame {
+    width: 375px;
+    max-width: 100%;
+    border-radius: 18px;
+    box-shadow: var(--frame-shadow), 0 0 0 1px var(--border);
+  }
+
+  .frame::-webkit-scrollbar { width: 10px; }
+  .frame::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+    border: 3px solid var(--bg);
+  }
+
+  .screen { display: none; min-height: 100%; }
+  .screen.is-active { display: block; }
+  [hidden] { display: none !important; }
+
+  /* ---------- 站内顶部导航 ---------- */
+
+  .site-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    height: var(--nav-h);
+    background: var(--nav-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .nav-inner {
+    height: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+    color: var(--text);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .brand:hover { color: var(--text); }
+
+  .brand-mark {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: var(--gradient-mark);
+    color: var(--white);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    flex: 0 0 auto;
+  }
+
+  .site-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .site-nav::-webkit-scrollbar { display: none; }
+
+  .site-nav a {
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: var(--text-78);
+    white-space: nowrap;
+    transition: background 0.18s var(--ease), color 0.18s var(--ease);
+  }
+
+  .site-nav a:hover { color: var(--text); background: var(--bg-subtle); }
+
+  .site-nav a.is-active {
+    color: var(--brand);
+    background: var(--brand-tint);
+    font-weight: 600;
+  }
+
+  /* ---------- 首页 ---------- */
+
+  .screen[data-screen="home"] {
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(520px 420px at 18% 26%, var(--aurora-green), transparent 70%),
+      radial-gradient(480px 380px at 82% 20%, var(--aurora-blue), transparent 70%),
+      radial-gradient(680px 480px at 50% 96%, var(--aurora-purple), transparent 72%),
+      linear-gradient(to right, var(--aurora-grid) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--aurora-grid) 1px, transparent 1px);
+    background-size: auto, auto, auto, 2rem 2rem, 2rem 2rem;
+    background-attachment: fixed;
+  }
+
+  .home-wrap {
+    max-width: var(--home-max);
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--avatar-size);
+    align-items: center;
+    gap: 64px;
+    padding: 88px 0 56px;
+  }
+
+  .hero-copy { min-width: 0; }
+
+  .hero h1 {
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 0 20px;
+    font-size: var(--fs-hero);
+    line-height: 1.5;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero-sub {
+    max-width: 35rem;
+    margin: 0 0 32px;
+    font-size: var(--fs-sub);
+    line-height: 1.3;
+    font-weight: 500;
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5em 1.5em;
+    border-radius: var(--btn-radius);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.5;
+    transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease), transform 0.18s var(--ease);
+  }
+
+  .btn:active { transform: translateY(1px); }
+
+  .btn-primary {
+    background: var(--brand-solid);
+    color: var(--white);
+    box-shadow: var(--btn-shadow);
+  }
+
+  .btn-primary:hover { background: var(--brand-hover); color: var(--white); }
+
+  .btn-secondary {
+    background: var(--brand-tint);
+    color: var(--brand);
+  }
+
+  .btn-secondary:hover { background: var(--brand-tint-strong); color: var(--brand); }
+
+  .avatar {
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+    border-radius: 1.5rem;
+    position: relative;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: var(--avatar-grad);
+    box-shadow: var(--avatar-shadow);
+  }
+
+  .avatar::before {
+    content: "";
+    position: absolute;
+    inset: 16px;
+    border-radius: 1rem;
+    background: var(--avatar-inner);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: inset 0 0 0 1px var(--avatar-inner-ring);
+  }
+
+  .avatar-mono {
+    position: relative;
+    font-size: 4rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 72px;
+  }
+
+  .dir-card {
+    display: block;
+    padding: var(--card-pad);
+    border-radius: var(--card-radius);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-shadow);
+    color: var(--text);
+    transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  }
+
+  .dir-card:hover {
+    color: var(--text);
+    transform: translateY(-2px);
+    box-shadow: var(--card-hover-shadow);
+  }
+
+  .dir-icon {
+    width: 34px; height: 34px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 12px;
+    border-radius: 9px;
+    background: var(--brand-tint);
+    color: var(--brand);
+  }
+
+  .dir-icon svg { width: 20px; height: 20px; }
+
+  .dir-card h3 {
+    margin: 0 0 6px;
+    font-size: var(--fs-h3);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .dir-card p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--text-78);
+  }
+
+  .about {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 8px 0 88px;
+  }
+
+  .about h2 {
+    margin: 0 0 24px;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+
+  .about p {
+    margin: 0 0 18px;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    color: var(--text);
+  }
+
+  .about p:last-child { margin-bottom: 0; }
+
+  .site-footer {
+    padding: 32px 24px 44px;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--text-56);
+    border-top: 1px solid var(--divider);
+  }
+
+  /* ---------- 目录型页面 ---------- */
+
+  .layout {
+    display: grid;
+    grid-template-columns: var(--side-w) minmax(0, 1fr);
+    align-items: start;
+    min-height: calc(100% - var(--nav-h));
+  }
+
+  .sidebar {
+    position: sticky;
+    top: var(--nav-h);
+    align-self: start;
+    height: calc(100dvh - var(--bar-h) - var(--nav-h));
+    overflow-y: auto;
+    padding: 20px 12px 32px;
+    background: var(--bg-subtle);
+    border-right: 1px solid var(--divider);
+    scrollbar-width: thin;
+  }
+
+  .side-group {
+    padding: 0 10px 10px;
+    font-size: var(--fs-group);
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.01em;
+  }
+
+  .side-list,
+  .side-list ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .side-list ul { margin-top: 2px; padding-left: 12px; }
+
+  .side-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 7px;
+    font-size: var(--fs-side);
+    line-height: 1.5;
+    color: var(--text-78);
+  }
+
+  a.side-item:hover { background: var(--hover-tint); color: var(--text); }
+
+  .side-item.is-open { color: var(--text); font-weight: 500; }
+
+  .side-item.is-active {
+    color: var(--brand);
+    background: var(--brand-tint);
+    font-weight: 600;
+  }
+
+  .side-item .chev {
+    margin-left: auto;
+    color: var(--text-56);
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+
+  .side-item.is-open .chev { color: var(--text-78); }
+  .side-item.is-active .chev { color: var(--brand); }
+
+  .side-note {
+    display: block;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    color: var(--text-56);
+    line-height: 1.5;
+  }
+
+  .page {
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: 40px 48px 96px;
+    min-width: 0;
+  }
+
+  .page-head { margin-bottom: 8px; }
+
+  .page-head h1 {
+    margin: 0 0 10px;
+    font-size: var(--fs-h1);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+    color: var(--text-56);
+    line-height: 1.5;
+  }
+
+  .meta span { white-space: nowrap; }
+  .meta span:not(:last-child)::after {
+    content: "·";
+    margin-left: 8px;
+    color: var(--border);
+  }
+
+  .page-intro {
+    max-width: 64ch;
+    margin: 20px 0 32px;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    color: var(--text-78);
+  }
+
+  .section-title {
+    margin: 40px 0 18px;
+    padding-bottom: 10px;
+    font-size: var(--fs-h2);
+    font-weight: 600;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--divider);
+    scroll-margin-top: calc(var(--nav-h) + 16px);
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: 0 0 8px;
+    border-radius: 8px;
+    border: 1px solid var(--divider);
+  }
+
+  table.data {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    background: var(--bg);
+    font-size: var(--fs-table);
+    line-height: 1.6;
+  }
+
+  table.data th {
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  table.data td {
+    padding: 10px 14px;
+    vertical-align: top;
+    color: var(--text);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  table.data tbody tr:last-child td { border-bottom: 0; }
+
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  table.data tr.total td {
+    font-weight: 700;
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border);
+  }
+
+  table.data a:hover { text-decoration: underline; }
+
+  .sep { color: var(--border); }
+  .dash { color: var(--text-56); }
+
+  .detail-block { margin-top: 32px; }
+
+  .detail-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .detail-head h3 {
+    margin: 0;
+    font-size: var(--fs-h3);
+    font-weight: 600;
+  }
+
+  .detail-head span {
+    font-size: 0.8125rem;
+    color: var(--text-56);
+  }
+
+  .subtoc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    font-size: 0.8125rem;
+    color: var(--text-78);
+  }
+
+  .subtoc i {
+    font-style: normal;
+    color: var(--text-56);
+  }
+
+  .more-note {
+    margin: 28px 0 0;
+    padding: 20px;
+    border-radius: 8px;
+    background: var(--bg-subtle);
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--text-56);
+  }
+
+  .lead {
+    margin: 20px 0 12px;
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .lead-sub {
+    margin: 0 0 28px;
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    color: var(--text-78);
+  }
+
+  .table-note {
+    margin: 16px 0 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  code {
+    padding: 1px 5px;
+    border: 1px solid var(--divider);
+    border-radius: 4px;
+    background: var(--bg-subtle);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.8125em;
+    white-space: nowrap;
+  }
+
+  /* ---------- 笔记正文 ---------- */
+
+  .note-layout {
+    display: grid;
+    grid-template-columns: var(--side-w) minmax(0, 1fr) var(--toc-w);
+    align-items: start;
+    min-height: calc(100% - var(--nav-h));
+  }
+
+  .article {
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: 40px 48px 96px;
+    min-width: 0;
+  }
+
+  .article p {
+    margin: 0 0 18px;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+  }
+
+  .quote {
+    margin: 24px 0 32px;
+    padding: 16px 22px;
+    border-left: 3px solid var(--brand);
+    border-radius: 0 8px 8px 0;
+    background: var(--bg-subtle);
+    color: var(--text-78);
+  }
+
+  .quote p {
+    margin: 0 0 12px;
+    line-height: var(--lh-body);
+  }
+
+  .quote p:last-child { margin-bottom: 0; }
+
+  .toc {
+    position: sticky;
+    top: var(--nav-h);
+    align-self: start;
+    height: calc(100dvh - var(--bar-h) - var(--nav-h));
+    overflow-y: auto;
+    padding: 40px 24px 40px 8px;
+  }
+
+  .toc-label {
+    margin: 0 0 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--text-56);
+  }
+
+  .toc-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-left: 1px solid var(--divider);
+  }
+
+  .toc-list a {
+    display: block;
+    margin-left: -1px;
+    padding: 6px 0 6px 14px;
+    border-left: 2px solid transparent;
+    font-size: var(--fs-side);
+    line-height: 1.5;
+    color: var(--text-78);
+  }
+
+  .toc-list a:hover { color: var(--text); }
+
+  .toc-list a.is-active {
+    color: var(--brand);
+    border-left-color: var(--brand);
+    font-weight: 600;
+  }
+
+  .code-block {
+    margin: 18px 0 28px;
+    border: 1px solid var(--divider);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--code-bg);
+  }
+
+  .code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--divider);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-56);
+  }
+
+  .code-body {
+    margin: 0;
+    padding: 16px 0;
+    overflow-x: auto;
+    background: var(--code-bg);
+    font-size: 0.8125rem;
+    line-height: 1.8;
+    color: var(--code-text);
+    counter-reset: line;
+  }
+
+  .code-body code {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: inherit;
+    white-space: normal;
+  }
+
+  .code-line {
+    display: block;
+    position: relative;
+    padding: 0 18px 0 52px;
+    white-space: pre;
+    font-family: var(--font-mono);
+  }
+
+  .code-line::before {
+    counter-increment: line;
+    content: counter(line);
+    position: absolute;
+    left: 0;
+    width: 32px;
+    text-align: right;
+    color: var(--code-line-no);
+  }
+
+  .tok-ann { color: var(--brand); }
+  .tok-kw { color: var(--tok-kw); }
+  .tok-type { color: var(--tok-type); }
+  .tok-fn { color: var(--tok-fn); }
+
+  /* Mermaid 四态预留：正文未提供图表内容，故不注入虚构图块 */
+  .mermaid-skeleton {
+    height: 96px;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    background: linear-gradient(90deg, var(--shimmer-base) 25%, var(--shimmer-sweep) 37%, var(--shimmer-base) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+  }
+
+  .mermaid-error {
+    padding: 12px 14px;
+    border: 1px solid var(--danger-border);
+    border-radius: 8px;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+
+  /* ---------- 响应式 ---------- */
+
+  @container (max-width: 1180px) {
+    .note-layout { grid-template-columns: var(--side-w) minmax(0, 1fr); }
+    .toc { display: none; }
+  }
+
+  @container (max-width: 900px) {
+    .layout,
+    .note-layout { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { display: none; }
+    .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+    .avatar { width: 180px; height: 180px; }
+    .page,
+    .article { padding: 32px 28px 80px; }
+  }
+
+  @container (max-width: 620px) {
+    .hero { padding: 56px 0 40px; }
+    .hero h1 { font-size: 2.35rem; }
+    .hero-sub { font-size: 1.15rem; }
+    .avatar { width: 140px; height: 140px; border-radius: 1.25rem; order: -1; }
+    .avatar::before { inset: 12px; border-radius: 0.9rem; }
+    .avatar-mono { font-size: 2.6rem; }
+    .card-grid { grid-template-columns: minmax(0, 1fr); margin-bottom: 56px; }
+    .brand-name { display: none; }
+    .nav-inner { padding: 0 16px; gap: 12px; }
+    .site-nav a { padding: 7px 9px; font-size: 0.8125rem; }
+    .home-wrap { padding: 0 18px; }
+    .page,
+    .article { padding: 28px 18px 72px; }
+    .about { padding-bottom: 64px; }
+    .about h2 { font-size: 1.3rem; }
+    table.data { font-size: 0.8125rem; }
+    table.data th,
+    table.data td { padding: 9px 11px; }
+  }
+
+  @media (max-width: 720px) {
+    .proto-brand { display: none; }
+    .proto-bar { gap: 8px; padding: 0 8px; }
+    .proto-tabs { margin: 0; overflow-x: auto; scrollbar-width: none; }
+    .proto-tabs::-webkit-scrollbar { display: none; }
+    .proto-tab { padding: 5px 9px; font-size: 0.75rem; }
+    .proto-device { margin-left: auto; }
+    .proto-device button { padding: 5px 8px; font-size: 0.75rem; }
+    .app[data-device="mobile"] .stage { padding: 8px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app" data-device="desktop">
+
+  <div class="proto-bar">
+    <div class="proto-brand"><span class="proto-dot" aria-hidden="true"></span>妙妙屋 · 高保真原型</div>
+    <nav class="proto-tabs" aria-label="原型页面切换">
+      <button type="button" class="proto-tab is-active" data-target="home" aria-pressed="true">首页</button>
+      <button type="button" class="proto-tab" data-target="notes" aria-pressed="false">笔记目录</button>
+      <button type="button" class="proto-tab" data-target="workflow" aria-pressed="false">工作流目录</button>
+      <button type="button" class="proto-tab" data-target="note" aria-pressed="false">笔记正文</button>
+    </nav>
+    <div class="proto-device" role="group" aria-label="预览宽度">
+      <button type="button" data-device="desktop" class="is-active" aria-pressed="true">桌面 1440</button>
+      <button type="button" data-device="mobile" aria-pressed="false">手机 375</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="frame" id="frame">
+
+      <!-- ===== 屏 1 · 首页 ===== -->
+      <section class="screen is-active" data-screen="home" aria-label="首页">
+        <header class="site-topbar">
+          <div class="nav-inner">
+            <a class="brand" href="#" aria-label="JimBo的米奇妙妙屋 首页">
+              <span class="brand-mark" aria-hidden="true">J</span>
+              <span class="brand-name">JimBo的米奇妙妙屋</span>
+            </a>
+            <nav class="site-nav" aria-label="主导航">
+              <a href="#" class="is-active" aria-current="page">首页</a>
+              <a href="#">全栈笔记</a>
+              <a href="#">全栈项目</a>
+              <a href="#">Agent工作流</a>
+              <a href="#">优质资源</a>
+              <a href="#">学习方法</a>
+            </nav>
+          </div>
+        </header>
+
+        <main>
+          <div class="home-wrap">
+            <section class="hero">
+              <div class="hero-copy">
+                <h1>JimBo的米奇妙妙屋</h1>
+                <p class="hero-sub">从指令到上线，从笔记到交付，你所想知的一切</p>
+                <div class="hero-actions">
+                  <a class="btn btn-primary" href="#">开始读笔记</a>
+                  <a class="btn btn-secondary" href="#">全栈项目</a>
+                  <a class="btn btn-secondary" href="#">Agent 工作流</a>
+                </div>
+              </div>
+              <div class="avatar" role="img" aria-label="JimBo 头像占位">
+                <span class="avatar-mono" aria-hidden="true">J</span>
+              </div>
+            </section>
+
+            <section class="card-grid" aria-label="笔记方向">
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>
+                </span>
+                <h3>计算机基础</h3>
+                <p>数据结构、组成原理、操作系统、网络、软件工程。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>
+                </span>
+                <h3>产品</h3>
+                <p>需求与验收、规划与增长、商业化与 B 端、AI 产品。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4.5-1.2L19 8.3a2.2 2.2 0 0 0-3.1-3.1L5.2 15.5 4 20z"/><path d="M14.5 6.5l3 3"/></svg>
+                </span>
+                <h3>设计</h3>
+                <p>视觉与规范、交互与设计系统、多端可用性、Figma 交付。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg>
+                </span>
+                <h3>架构</h3>
+                <p>架构决策与 ADR、领域边界、分布式一致性、容量与容灾。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5M13 5l-2 14"/></svg>
+                </span>
+                <h3>前端</h3>
+                <p>HTML/CSS/TS、Vue3、React19、工程化、测试、性能与安全。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+                </span>
+                <h3>后端</h3>
+                <p>Java、Python、Go、C++、Rust，加数据库、中间件与 API。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a1.8 1.8 0 0 0 1.6 3h10.8A1.8 1.8 0 0 0 19 18l-5-9V3"/><path d="M7.5 14h9"/></svg>
+                </span>
+                <h3>测试</h3>
+                <p>策略与用例、单元与集成、接口与 E2E、性能与安全、CI 治理。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>
+                </span>
+                <h3>运维</h3>
+                <p>Linux、Docker 与 K8s、Nginx、CI/CD、可观测性、故障复盘。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
+                </span>
+                <h3>移动端</h3>
+                <p>Android、iOS、鸿蒙、Flutter、RN、uni-app、H5 与集成。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z"/></svg>
+                </span>
+                <h3>大模型</h3>
+                <p>模型接入、Prompt 与结构化、RAG、Agent、Spring AI、AI 安全。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4V4.5z"/></svg>
+                </span>
+                <h3>优质资源</h3>
+                <p>开源项目、代码规范、学习文档、实用网站。</p>
+              </a>
+              <a class="dir-card" href="#">
+                <span class="dir-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 5l9 4.5-9 4.5-9-4.5z"/><path d="M6.5 11.5V16c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-4.5M21 9.5V14"/></svg>
+                </span>
+                <h3>学习方法</h3>
+                <p>学习金字塔、布鲁姆层级、费曼学习、刻意练习。</p>
+              </a>
+            </section>
+
+            <section class="about">
+              <h2>米奇妙妙屋想解决什么？</h2>
+              <p>网上讲一个技术的文章很多，但大多停在「它能做什么」，很少回答真正卡住人的三件事：装好了怎么确认真的能用、出了事第一条命令敲什么、放到真实项目里边界在哪。</p>
+              <p>所以这里不写名词百科，按一条完整的交付链铺开：计算机基础 → 产品 → 设计 → 架构 → 前端/后端 → 测试 → 运维 → 移动端 → 大模型，219 篇，每个环节都能看到上游要什么、下游怎么接。</p>
+              <p>每一篇都按同一套结构写：先划边界，再给最小可运行验证，最后落到一个完整案例。看完能从「听说过」变成「敢在项目里用，坏了知道先看哪」。</p>
+              <p>开发编码只占正规项目的 20%，AI 至今没能高质量完成工程，本质仍是黑盒祈祷编程。与其追 Harness、Skills 这类几个月迭代一次的中间产物，不如把精力放在企业级规范开发流程上——Agent 工作流把产品、设计、架构、开发、测试、审查、运维七个角色和八道门写成了可执行的规则，让 AI 的输出有人复核、有门把关，而不是自己写自己签字。</p>
+            </section>
+          </div>
+        </main>
+
+        <footer class="site-footer">CC BY-NC-SA 4.0 ｜Copyright © 2026 JimBo</footer>
+      </section>
+
+      <!-- ===== 屏 2 · 笔记目录 ===== -->
+      <section class="screen" data-screen="notes" aria-label="笔记目录" hidden>
+        <header class="site-topbar">
+          <div class="nav-inner">
+            <a class="brand" href="#" aria-label="JimBo的米奇妙妙屋 首页">
+              <span class="brand-mark" aria-hidden="true">J</span>
+              <span class="brand-name">JimBo的米奇妙妙屋</span>
+            </a>
+            <nav class="site-nav" aria-label="主导航">
+              <a href="#">首页</a>
+              <a href="#" class="is-active" aria-current="page">全栈笔记</a>
+              <a href="#">全栈项目</a>
+              <a href="#">Agent工作流</a>
+              <a href="#">优质资源</a>
+              <a href="#">学习方法</a>
+            </nav>
+          </div>
+        </header>
+
+        <div class="layout">
+          <aside class="sidebar" aria-label="笔记目录">
+            <div class="side-group">全栈笔记</div>
+            <ul class="side-list">
+              <li><a class="side-item is-active" href="#" aria-current="page">00-内容导读<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">00-计算机基础<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">01-产品<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">02-设计<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">03-架构<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">04-前端<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">05-后端<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">06-测试<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">07-运维<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">08-移动端<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">09-大模型<span class="chev" aria-hidden="true">›</span></a></li>
+            </ul>
+          </aside>
+
+          <main class="page">
+            <header class="page-head">
+              <h1>全栈笔记目录</h1>
+              <div class="meta"><span>JimBo</span><span>大约 22 分钟</span></div>
+            </header>
+            <p class="page-intro">全站共 10 个方向、63 个章节、219 篇笔记，按一条完整的交付链顺序排开，每个环节都能看到上游要什么、下游怎么接。</p>
+
+            <h2 class="section-title">总览</h2>
+            <div class="table-wrap">
+              <table class="data">
+                <caption class="sr-only">全栈笔记方向总览</caption>
+                <thead>
+                  <tr><th scope="col">方向</th><th scope="col" class="num">篇数</th><th scope="col" class="num">章节</th><th scope="col">覆盖</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>00-计算机基础</td><td class="num">34</td><td class="num">5</td><td>01–05</td></tr>
+                  <tr><td>01-产品</td><td class="num">9</td><td class="num">4</td><td>01–04</td></tr>
+                  <tr><td>02-设计</td><td class="num">8</td><td class="num">4</td><td>01–04</td></tr>
+                  <tr><td>03-架构</td><td class="num">14</td><td class="num">5</td><td>01–05</td></tr>
+                  <tr><td>04-前端</td><td class="num">25</td><td class="num">8</td><td>01–08</td></tr>
+                  <tr><td>05-后端</td><td class="num">74</td><td class="num">9</td><td>01–09</td></tr>
+                  <tr><td>06-测试</td><td class="num">10</td><td class="num">7</td><td>01–07</td></tr>
+                  <tr><td>07-运维</td><td class="num">18</td><td class="num">7</td><td>01–07</td></tr>
+                  <tr><td>08-移动端</td><td class="num">12</td><td class="num">7</td><td>01–07</td></tr>
+                  <tr><td>09-大模型</td><td class="num">15</td><td class="num">7</td><td>01–07</td></tr>
+                  <tr class="total"><td>合计</td><td class="num">219</td><td class="num">63</td><td>10 个方向 · 63 章</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h2 class="section-title">明细</h2>
+
+            <section class="detail-block">
+              <div class="detail-head"><h3>00-计算机基础</h3><span>34 篇 · 5 章</span></div>
+              <div class="table-wrap">
+                <table class="data">
+                  <caption class="sr-only">00-计算机基础 明细</caption>
+                  <thead>
+                    <tr><th scope="col">章节</th><th scope="col" class="num">篇数</th><th scope="col">篇目</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>01-数据结构</td>
+                      <td class="num">8</td>
+                      <td><a href="#">01-绪论</a><span class="sep"> · </span><a href="#">02-线性表</a><span class="sep"> · </span><a href="#">03-栈、队列、数组</a><span class="sep"> · </span><a href="#">04-字符串</a><span class="sep"> · </span><a href="#">05-树与二叉树</a><span class="sep"> · </span><a href="#">06-图</a><span class="sep"> · </span><a href="#">07-查找</a><span class="sep"> · </span><a href="#">08-排序</a></td>
+                    </tr>
+                    <tr><td>02-计算机组成原理</td><td class="num">6</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>03-操作系统</td><td class="num">5</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>04-计算机网络</td><td class="num">6</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>05-软件工程</td><td class="num">9</td><td><span class="dash">—</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="detail-block">
+              <div class="detail-head"><h3>05-后端</h3><span>74 篇 · 9 章</span></div>
+              <div class="table-wrap">
+                <table class="data">
+                  <caption class="sr-only">05-后端 明细</caption>
+                  <thead>
+                    <tr><th scope="col">章节</th><th scope="col" class="num">篇数</th><th scope="col">篇目</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>01-Java</td>
+                      <td class="num">20</td>
+                      <td>
+                        <div class="subtoc">
+                          <span>01-Java语法 <i>(3)</i></span>
+                          <span>02-Java常用库 <i>(3)</i></span>
+                          <span>03-Java工程化 <i>(1)</i></span>
+                          <span>04-Java数据库 <i>(1)</i></span>
+                          <span>05-Java常用框架 <i>(6)</i></span>
+                          <span>06-Java微服务 <i>(6)</i></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr><td>02-Python</td><td class="num">10</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>03-Go</td><td class="num">13</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>04-Cpp</td><td class="num">6</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>05-Rust</td><td class="num">9</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>06-数据库</td><td class="num">5</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>07-中间件</td><td class="num">6</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>08-Web与API</td><td class="num">3</td><td><span class="dash">—</span></td></tr>
+                    <tr><td>09-安全</td><td class="num">2</td><td><span class="dash">—</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <p class="more-note">… 其余 8 个方向明细从略 …</p>
+          </main>
+        </div>
+      </section>
+
+      <!-- ===== 屏 3 · Agent 工作流目录 ===== -->
+      <section class="screen" data-screen="workflow" aria-label="Agent 工作流目录" hidden>
+        <header class="site-topbar">
+          <div class="nav-inner">
+            <a class="brand" href="#" aria-label="JimBo的米奇妙妙屋 首页">
+              <span class="brand-mark" aria-hidden="true">J</span>
+              <span class="brand-name">JimBo的米奇妙妙屋</span>
+            </a>
+            <nav class="site-nav" aria-label="主导航">
+              <a href="#">首页</a>
+              <a href="#">全栈笔记</a>
+              <a href="#">全栈项目</a>
+              <a href="#" class="is-active" aria-current="page">Agent工作流</a>
+              <a href="#">优质资源</a>
+              <a href="#">学习方法</a>
+            </nav>
+          </div>
+        </header>
+
+        <div class="layout">
+          <aside class="sidebar" aria-label="Agent 工作流目录">
+            <div class="side-group">Agent 工作流</div>
+            <ul class="side-list">
+              <li><a class="side-item is-active" href="#" aria-current="page">00-内容导读<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">01-全局AGENTS模板<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">02-subagent模板<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">03-skill与mcp模板<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">04-项目AGENTS模板<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">05-docs文档模板<span class="chev" aria-hidden="true">›</span></a></li>
+              <li><a class="side-item" href="#">06-项目目录模板<span class="chev" aria-hidden="true">›</span></a></li>
+            </ul>
+          </aside>
+
+          <main class="page">
+            <header class="page-head">
+              <h1>Agent 工作流目录</h1>
+            </header>
+            <p class="lead">一套「AI + 人」的端到端交付规范：七个岗位角色、八道门，把人和 AI 的分工钉死。</p>
+            <p class="lead-sub">下表是全部 7 份文档，点标题进正文；左侧边栏是同一套顺序。</p>
+
+            <div class="table-wrap">
+              <table class="data">
+                <caption class="sr-only">Agent 工作流文档清单</caption>
+                <thead>
+                  <tr><th scope="col" class="num">#</th><th scope="col">文档</th><th scope="col">装到哪</th><th scope="col">讲什么</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class="num">0</td><td><a href="#">00-内容导读</a></td><td>读完就懂</td><td>装什么、怎么让 AI 装、装完怎么用</td></tr>
+                  <tr><td class="num">1</td><td><a href="#">01-全局AGENTS模板</a></td><td><code>~/.config/opencode/AGENTS.md</code></td><td>行为底线、任务分级、八道门</td></tr>
+                  <tr><td class="num">2</td><td><a href="#">02-subagent模板</a></td><td>拆成 7 个文件进 <code>agents/</code></td><td>七个角色的系统提示词</td></tr>
+                  <tr><td class="num">3</td><td><a href="#">03-skill与mcp模板</a></td><td>按表装配</td><td>每角色用哪个 skill、连哪个 MCP</td></tr>
+                  <tr><td class="num">4</td><td><a href="#">04-项目AGENTS模板</a></td><td>每个项目复制成 <code>AGENTS.md</code></td><td>项目特有的事实与命令</td></tr>
+                  <tr><td class="num">5</td><td><a href="#">05-docs文档模板</a></td><td>不装，查用</td><td><code>docs/</code> 下每份文档写哪几节</td></tr>
+                  <tr><td class="num">6</td><td><a href="#">06-项目目录模板</a></td><td>不装，查用</td><td>目录怎么建、怎么裁剪</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="table-note">1–3 是全局的，装一次；4 每个项目装一次；5、6 查用。</p>
+          </main>
+        </div>
+      </section>
+
+      <!-- ===== 屏 4 · 笔记正文 ===== -->
+      <section class="screen" data-screen="note" aria-label="笔记正文" hidden>
+        <header class="site-topbar">
+          <div class="nav-inner">
+            <a class="brand" href="#" aria-label="JimBo的米奇妙妙屋 首页">
+              <span class="brand-mark" aria-hidden="true">J</span>
+              <span class="brand-name">JimBo的米奇妙妙屋</span>
+            </a>
+            <nav class="site-nav" aria-label="主导航">
+              <a href="#">首页</a>
+              <a href="#" class="is-active" aria-current="page">全栈笔记</a>
+              <a href="#">全栈项目</a>
+              <a href="#">Agent工作流</a>
+              <a href="#">优质资源</a>
+              <a href="#">学习方法</a>
+            </nav>
+          </div>
+        </header>
+
+        <div class="note-layout">
+          <aside class="sidebar" aria-label="笔记目录">
+            <div class="side-group">全栈笔记</div>
+            <ul class="side-list">
+              <li><a class="side-item" href="#">00-计算机基础<span class="chev" aria-hidden="true">›</span></a></li>
+              <li>
+                <a class="side-item is-open" href="#">05-后端<span class="chev" aria-hidden="true">⌄</span></a>
+                <ul>
+                  <li>
+                    <a class="side-item is-open" href="#">01-Java<span class="chev" aria-hidden="true">⌄</span></a>
+                    <ul>
+                      <li>
+                        <a class="side-item is-open" href="#">05-Java常用框架<span class="chev" aria-hidden="true">⌄</span></a>
+                        <ul>
+                          <li><a class="side-item is-active" href="#" aria-current="page">02-SpringBoot应用框架</a></li>
+                          <li><span class="side-note">其余 5 篇 …</span></li>
+                        </ul>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </aside>
+
+          <main class="article">
+            <header class="page-head">
+              <h1>SpringBoot应用框架</h1>
+              <div class="meta"><span>JimBo</span><span>大约 14 分钟</span><span>方向 05-后端</span></div>
+            </header>
+
+            <blockquote class="quote">
+              <p>这篇从 Spring Boot 的约定和版本边界讲起，经过工程创建、自动配置、Starter、配置与 Profile、启动流程、三层结构、Actuator，最后落到打包部署、故障排查和一个可上线的库存服务案例。</p>
+              <p>学完能独立搭建 Spring Boot 3.5 应用，解释自动配置从哪来，按环境管理配置，并用 Actuator 和日志定位启动与运行问题。</p>
+            </blockquote>
+
+            <h2 class="section-title" id="s1">一、Spring Boot 的约定与版本边界</h2>
+            <p>Spring Boot 的约定决定了一个工程「默认不用配什么」：依赖版本由 BOM 收口，Servlet 容器内嵌在应用里，配置按固定顺序加载。先把版本边界划清楚，后面的自动配置、Starter 和 Profile 才不会互相打架。</p>
+
+            <div class="table-wrap">
+              <table class="data">
+                <caption class="sr-only">Spring Boot 版本对照</caption>
+                <thead>
+                  <tr><th scope="col">版本</th><th scope="col">Spring Framework</th><th scope="col">Java</th><th scope="col">主要变化</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Spring Boot 3.5.x</td><td>6.2.x</td><td>17–25</td><td>存量系统主线，Jakarta EE 10</td></tr>
+                  <tr><td>Spring Boot 4.1.x</td><td>7.x</td><td>17+</td><td>当前 OSS 主线，新项目首选</td></tr>
+                  <tr><td>Spring Boot 2.7.x</td><td>5.3.x</td><td>8–17</td><td>已停止维护，不用于新项目</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h2 class="section-title" id="s2">二、创建与最小运行</h2>
+            <p>最小可运行工程只需要一个带 <code>@SpringBootApplication</code> 的启动类；依赖加好之后直接运行 main 方法，端口、日志和自动配置的结果都在这条启动路径上暴露出来。</p>
+
+            <div class="code-block">
+              <div class="code-head"><span>DemoApplication.java</span><span>Java</span></div>
+              <pre class="code-body"><code><span class="code-line"><span class="tok-ann">@SpringBootApplication</span></span><span class="code-line"><span class="tok-kw">public class</span> <span class="tok-type">DemoApplication</span> {</span><span class="code-line">    <span class="tok-kw">public static void</span> <span class="tok-fn">main</span>(<span class="tok-type">String</span>[] args) {</span><span class="code-line">        <span class="tok-type">SpringApplication</span>.<span class="tok-fn">run</span>(<span class="tok-type">DemoApplication</span>.<span class="tok-kw">class</span>, args);</span><span class="code-line">    }</span><span class="code-line">}</span></code></pre>
+            </div>
+
+            <h2 class="section-title" id="s3">十一、最佳实践案例</h2>
+            <p>最后把前面讲过的版本边界、配置管理、启动流程和排障手段收束到一个可上线的库存服务案例里，按「先划边界、再给最小验证、最后落到完整案例」的顺序走一遍。</p>
+          </main>
+
+          <aside class="toc" aria-label="此页内容">
+            <p class="toc-label">此页内容</p>
+            <ul class="toc-list">
+              <li><a href="#s1" class="is-active">一、Spring Boot 的约定与版本边界</a></li>
+              <li><a href="#s2">二、创建与最小运行</a></li>
+              <li><a href="#s3">十一、最佳实践案例</a></li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var app = document.querySelector('.app');
+    var frame = document.getElementById('frame');
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.proto-tab'));
+    var screens = Array.prototype.slice.call(document.querySelectorAll('.screen'));
+
+    function show(id) {
+      screens.forEach(function (screen) {
+        var on = screen.getAttribute('data-screen') === id;
+        screen.classList.toggle('is-active', on);
+        if (on) {
+          screen.removeAttribute('hidden');
+        } else {
+          screen.setAttribute('hidden', '');
+        }
+      });
+      tabs.forEach(function (tab) {
+        var on = tab.getAttribute('data-target') === id;
+        tab.classList.toggle('is-active', on);
+        tab.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      frame.scrollTop = 0;
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        show(tab.getAttribute('data-target'));
+      });
+    });
+
+    Array.prototype.slice.call(document.querySelectorAll('[data-device]')).forEach(function (button) {
+      button.addEventListener('click', function () {
+        var device = button.getAttribute('data-device');
+        app.setAttribute('data-device', device);
+        Array.prototype.slice.call(document.querySelectorAll('[data-device]')).forEach(function (item) {
+          var on = item.getAttribute('data-device') === device;
+          item.classList.toggle('is-active', on);
+          item.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        frame.scrollTop = 0;
+      });
+    });
+
+    document.addEventListener('click', function (event) {
+      var link = event.target.closest('a[href="#"]');
+      if (link) { event.preventDefault(); }
+    });
+  })();
+</script>
+</body>
+</html>

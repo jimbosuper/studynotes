@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="720" viewBox="0 0 380 720">
+  <rect width="380" height="720" fill="#f8fafc"/>
+  <text x="16" y="26" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">门店预约小程序界面效果（微信 / 支付宝 / H5 共用一套页面）</text>
+
+  <!-- 手机外框 -->
+  <rect x="40" y="44" width="300" height="640" rx="30" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="140" y="56" width="100" height="8" rx="4" fill="#e2e8f0"/>
+
+  <!-- 状态栏 -->
+  <text x="64" y="90" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">9:41</text>
+  <rect x="266" y="82" width="16" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="288" y="82" width="22" height="8" rx="2" fill="#cbd5e1"/>
+
+  <!-- 顶部标题 -->
+  <text x="64" y="130" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="600" fill="#1f2937">预约门店</text>
+  <text x="64" y="152" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">12 家门店 · 就近选择</text>
+
+  <!-- 门店卡片 -->
+  <rect x="64" y="170" width="252" height="92" rx="14" fill="#eff6ff" stroke="#bfdbfe"/>
+  <circle cx="92" cy="204" r="14" fill="#dbeafe"/>
+  <text x="92" y="209" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#1e3a8a" text-anchor="middle">店</text>
+  <text x="116" y="200" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#1e3a8a">静安寺店</text>
+  <text x="116" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">南京西路 1266 号 · 1.2 km</text>
+  <text x="116" y="244" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#166534">营业中 10:00–22:00</text>
+
+  <!-- 日期选择 -->
+  <text x="64" y="296" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">选择日期</text>
+  <rect x="64" y="308" width="58" height="56" rx="10" fill="#2563eb"/>
+  <text x="93" y="330" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#dbeafe" text-anchor="middle">今天</text>
+  <text x="93" y="352" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" fill="#ffffff" text-anchor="middle">13</text>
+  <rect x="130" y="308" width="58" height="56" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="159" y="330" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">周六</text>
+  <text x="159" y="352" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" fill="#1f2937" text-anchor="middle">14</text>
+  <rect x="196" y="308" width="58" height="56" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="225" y="330" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">周日</text>
+  <text x="225" y="352" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" fill="#1f2937" text-anchor="middle">15</text>
+  <rect x="262" y="308" width="54" height="56" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="289" y="330" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">周一</text>
+  <text x="289" y="352" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" fill="#1f2937" text-anchor="middle">16</text>
+
+  <!-- 时段 -->
+  <text x="64" y="394" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">可预约时段</text>
+  <rect x="64" y="408" width="76" height="40" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="102" y="433" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1e3a8a" text-anchor="middle">10:30</text>
+  <rect x="150" y="408" width="76" height="40" rx="8" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="188" y="433" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#166534" text-anchor="middle">14:00</text>
+  <rect x="64" y="458" width="76" height="40" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="102" y="483" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">15:30</text>
+  <rect x="150" y="458" width="76" height="40" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="188" y="483" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1e3a8a" text-anchor="middle">18:00</text>
+
+  <!-- 已选提示 -->
+  <rect x="64" y="516" width="252" height="40" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="76" y="541" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#92400e">已选：今天 14:00 静安寺店 · 定金 50 元</text>
+
+  <!-- 主按钮 -->
+  <rect x="64" y="572" width="252" height="46" rx="12" fill="#2563eb"/>
+  <text x="190" y="601" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">确认预约并支付定金</text>
+
+  <!-- 底部 tabBar -->
+  <line x1="40" y1="640" x2="340" y2="640" stroke="#e2e8f0"/>
+  <text x="100" y="668" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#2563eb" text-anchor="middle">首页</text>
+  <text x="190" y="668" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">我的订单</text>
+  <text x="280" y="668" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">我的</text>
+</svg>

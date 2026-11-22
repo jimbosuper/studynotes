@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" viewBox="0 0 1000 700">
+  <rect width="1000" height="700" fill="#f1f5f9"/>
+
+  <!-- 背景页面：工单列表（被抽屉覆盖一部分） -->
+  <rect x="24" y="42" width="700" height="636" rx="8" fill="#ffffff" stroke="#e2e8f0" opacity="0.5"/>
+  <text x="44" y="76" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#64748b" opacity="0.8">工单列表</text>
+  <rect x="44" y="96" width="660" height="36" rx="6" fill="#f8fafc" opacity="0.8"/>
+  <text x="58" y="119" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">T-10241 门店打印机无法出小票 · 加急</text>
+  <rect x="44" y="140" width="660" height="36" rx="6" fill="#1d4ed8" opacity="0.92"/>
+  <text x="58" y="163" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">T-10256 门店收银系统登录失败 · 选中</text>
+  <rect x="44" y="184" width="660" height="36" rx="6" fill="#f8fafc" opacity="0.8"/>
+  <text x="58" y="207" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">T-10260 会员积分未到账</text>
+
+  <!-- 抽屉 -->
+  <rect x="360" y="0" width="640" height="700" fill="#ffffff"/>
+  <line x1="360" y1="0" x2="360" y2="700" stroke="#e2e8f0"/>
+  <rect x="360" y="0" width="640" height="56" fill="#ffffff"/>
+  <line x1="360" y1="56" x2="1000" y2="56" stroke="#e2e8f0"/>
+  <text x="384" y="35" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="16" font-weight="600" fill="#0f172a">工单审批</text>
+  <text x="960" y="35" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" fill="#94a3b8">×</text>
+
+  <!-- 工单概要 -->
+  <rect x="384" y="76" width="592" height="92" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="404" y="102" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">T-10256 门店收银系统登录失败</text>
+  <rect x="640" y="88" width="52" height="20" rx="10" fill="#fff7ed"/>
+  <text x="652" y="102" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#c2410c">加急</text>
+  <text x="404" y="126" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">门店：杭州滨江店 · 负责人：王敏 · 创建于 11-13 09:12</text>
+  <text x="404" y="150" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">描述：收银台提示账号被锁定，重置后仍无法登录，影响早高峰结账。</text>
+
+  <!-- 处理记录 -->
+  <text x="384" y="200" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">处理记录</text>
+  <circle cx="392" cy="228" r="4" fill="#1d4ed8"/>
+  <line x1="392" y1="234" x2="392" y2="258" stroke="#e2e8f0"/>
+  <text x="408" y="232" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">11-13 09:40 · 王敏 · 远程重置账号</text>
+  <circle cx="392" cy="264" r="4" fill="#1d4ed8"/>
+  <line x1="392" y1="270" x2="392" y2="294" stroke="#e2e8f0"/>
+  <text x="408" y="268" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">11-13 10:05 · 陈曦 · 现场排查网络策略</text>
+  <circle cx="392" cy="300" r="4" fill="#86efac"/>
+  <text x="408" y="304" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">11-13 10:32 · 系统策略放行，等待审批升级权限</text>
+
+  <!-- 沟通记录（乐观更新条目半透明） -->
+  <text x="384" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">沟通记录</text>
+  <rect x="384" y="362" width="592" height="40" rx="6" fill="#f8fafc"/>
+  <text x="400" y="386" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">王敏：已重置账号，需要总部放行门店网段权限。</text>
+  <rect x="384" y="410" width="592" height="40" rx="6" fill="#f8fafc"/>
+  <text x="400" y="434" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">门店店长：早上 8 点到 10 点是高峰，请尽快处理。</text>
+  <rect x="384" y="458" width="592" height="40" rx="6" fill="#eff6ff" opacity="0.62"/>
+  <text x="400" y="482" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1e40af">李审批：收到，权限走加急通道，稍后同步结果。（发送中）</text>
+
+  <!-- 审批表单 -->
+  <text x="384" y="532" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">审批意见</text>
+  <rect x="384" y="544" width="592" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="400" y="568" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">同意按加急流程升级门店网段权限，事后补充变更单。</text>
+  <rect x="384" y="568" width="592" height="2" fill="#f1f5f9"/>
+
+  <rect x="384" y="624" width="180" height="38" rx="6" fill="#1d4ed8"/>
+  <text x="446" y="648" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#ffffff">通过</text>
+  <rect x="576" y="624" width="140" height="38" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="624" y="648" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#b91c1c">驳回</text>
+
+  <text x="736" y="648" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">提交中…</text>
+
+  <text x="24" y="692" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">审批抽屉：Suspense 管加载、错误边界管失败、useActionState 管提交、useOptimistic 管评论即时显示</text>
+</svg>

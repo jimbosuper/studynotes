@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers 静态资源部署配置
+  // 构建产物目录：src/.vuepress/dist（由 `npm run build` 生成）
+  "name": "studynotes",
+  "compatibility_date": "2026-01-01",
+  "assets": {
+    "directory": "./src/.vuepress/dist",
+    "not_found_handling": "404-page"
+  }
+}

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640" viewBox="0 0 360 640">
+  <rect width="360" height="640" fill="#f8fafc"/>
+  <text x="16" y="24" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">订单详情页（Compose + Navigation）</text>
+
+  <!-- 手机外框 -->
+  <rect x="30" y="44" width="300" height="560" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="130" y="56" width="100" height="8" rx="4" fill="#e2e8f0"/>
+
+  <!-- 状态栏 -->
+  <text x="52" y="88" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">9:41</text>
+  <rect x="258" y="80" width="18" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="282" y="80" width="24" height="8" rx="2" fill="#cbd5e1"/>
+
+  <!-- 顶部栏 -->
+  <path d="M62 122 l-10 8 l10 8" fill="none" stroke="#475569" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="180" y="132" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="16" font-weight="600" fill="#1f2937" text-anchor="middle">订单详情</text>
+
+  <!-- 状态横幅 -->
+  <rect x="52" y="152" width="256" height="64" rx="14" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="68" y="178" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" font-weight="600" fill="#92400e">待发货</text>
+  <text x="68" y="198" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#92400e">商家正在备货，预计 11-14 前发出</text>
+
+  <!-- 收货信息 -->
+  <rect x="52" y="228" width="256" height="76" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+  <circle cx="74" cy="252" r="7" fill="none" stroke="#2563eb" stroke-width="1.6"/>
+  <path d="M74 245 a7 7 0 0 0 -7 7 c0 5 7 13 7 13 s7 -8 7 -13 a7 7 0 0 0 -7 -7" fill="none" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="90" y="256" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">张明 138****6721</text>
+  <text x="90" y="276" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">杭州市西湖区文三路 90 号 3 幢 502</text>
+
+  <!-- 商品 -->
+  <rect x="52" y="316" width="256" height="110" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="68" y="332" width="44" height="44" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="90" y="359" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#3b82f6" text-anchor="middle">IMG</text>
+  <text x="124" y="344" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#1f2937">智利车厘子 2kg</text>
+  <text x="124" y="362" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">规格：JJ 级 · 冷链</text>
+  <text x="124" y="382" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#dc2626">¥ 158.00 × 1</text>
+  <line x1="68" y1="398" x2="292" y2="398" stroke="#f1f5f9"/>
+  <text x="68" y="414" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">商品合计</text>
+  <text x="292" y="414" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937" text-anchor="end">¥ 158.00</text>
+
+  <!-- 金额明细 -->
+  <rect x="52" y="438" width="256" height="76" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="68" y="460" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">运费</text>
+  <text x="292" y="460" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937" text-anchor="end">¥ 0.00</text>
+  <text x="68" y="480" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">优惠</text>
+  <text x="292" y="480" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#16a34a" text-anchor="end">- ¥ 10.00</text>
+  <line x1="68" y1="490" x2="292" y2="490" stroke="#f1f5f9"/>
+  <text x="68" y="506" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1f2937">实付</text>
+  <text x="292" y="506" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#dc2626" text-anchor="end">¥ 148.00</text>
+
+  <!-- 底部按钮 -->
+  <line x1="30" y1="536" x2="330" y2="536" stroke="#e2e8f0"/>
+  <rect x="52" y="552" width="112" height="40" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="108" y="577" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#475569" text-anchor="middle">联系客服</text>
+  <rect x="176" y="552" width="132" height="40" rx="10" fill="#2563eb"/>
+  <text x="242" y="577" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#ffffff" text-anchor="middle">催发货</text>
+</svg>

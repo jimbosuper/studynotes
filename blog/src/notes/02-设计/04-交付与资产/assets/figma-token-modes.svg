@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="430" viewBox="0 0 960 430">
+  <rect width="960" height="430" fill="#f8fafc"/>
+  <text x="24" y="28" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">同一组件实例，只切换 Variable Mode，不复制画板</text>
+
+  <text x="80" y="74" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#475569">模式 light</text>
+  <rect x="80" y="88" width="360" height="240" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="104" y="124" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#1f2937">订单卡片</text>
+  <rect x="356" y="110" width="56" height="22" rx="11" fill="#ecfdf5"/>
+  <text x="368" y="125" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">已完成</text>
+  <text x="104" y="164" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#6b7280">客户 · 张三</text>
+  <text x="104" y="186" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">¥499.00</text>
+  <line x1="104" y1="206" x2="416" y2="206" stroke="#e2e8f0"/>
+  <rect x="104" y="244" width="72" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="126" y="266" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">取消</text>
+  <rect x="188" y="244" width="88" height="36" rx="6" fill="#2563eb"/>
+  <text x="212" y="266" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">发货</text>
+
+  <text x="520" y="74" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#475569">模式 dark</text>
+  <rect x="520" y="88" width="360" height="240" rx="12" fill="#1f2937" stroke="#374151"/>
+  <text x="544" y="124" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#f3f4f6">订单卡片</text>
+  <rect x="796" y="110" width="56" height="22" rx="11" fill="#052e1b"/>
+  <text x="808" y="125" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#6ee7b7">已完成</text>
+  <text x="544" y="164" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#9ca3af">客户 · 张三</text>
+  <text x="544" y="186" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#f3f4f6">¥499.00</text>
+  <line x1="544" y1="206" x2="856" y2="206" stroke="#374151"/>
+  <rect x="544" y="244" width="72" height="36" rx="6" fill="#111827" stroke="#4b5563"/>
+  <text x="566" y="266" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#d1d5db">取消</text>
+  <rect x="628" y="244" width="88" height="36" rx="6" fill="#2563eb"/>
+  <text x="652" y="266" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">发货</text>
+
+  <text x="80" y="352" font-family="SFMono-Regular, Consolas, monospace" font-size="10" fill="#475569">bg    = color/surface/card  →  #FFFFFF</text>
+  <text x="80" y="370" font-family="SFMono-Regular, Consolas, monospace" font-size="10" fill="#475569">text  = color/text/primary →  #1F2937</text>
+  <text x="520" y="352" font-family="SFMono-Regular, Consolas, monospace" font-size="10" fill="#475569">bg    = color/surface/card  →  #1F2937</text>
+  <text x="520" y="370" font-family="SFMono-Regular, Consolas, monospace" font-size="10" fill="#475569">text  = color/text/primary →  #F3F4F6</text>
+
+  <text x="80" y="404" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">fill = color/action/primary → #2563EB：两种模式取值相同，令牌只改需要改的</text>
+</svg>

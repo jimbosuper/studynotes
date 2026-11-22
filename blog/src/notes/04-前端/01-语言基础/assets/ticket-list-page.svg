@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="620" viewBox="0 0 960 620">
+  <rect width="960" height="620" fill="#f1f5f9"/>
+  <text x="20" y="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">工单列表页 · 1024px 视口效果（侧栏 Grid + 顶栏 sticky + 卡片 auto-fit + 容器查询）</text>
+
+  <!-- 侧栏 -->
+  <rect x="20" y="36" width="208" height="564" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="68" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" font-weight="700" fill="#0f172a">服务台</text>
+  <rect x="32" y="86" width="184" height="34" rx="8" fill="none"/>
+  <text x="48" y="108" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12.5" fill="#64748b">概览</text>
+  <rect x="32" y="126" width="184" height="34" rx="8" fill="#eff6ff"/>
+  <text x="48" y="148" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12.5" font-weight="600" fill="#1d4ed8">工单</text>
+  <rect x="32" y="166" width="184" height="34" rx="8" fill="none"/>
+  <text x="48" y="188" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12.5" fill="#64748b">客户</text>
+  <rect x="32" y="206" width="184" height="34" rx="8" fill="none"/>
+  <text x="48" y="228" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12.5" fill="#64748b">报表</text>
+  <line x1="32" y1="548" x2="216" y2="548" stroke="#e2e8f0"/>
+  <circle cx="46" cy="570" r="11" fill="#eff6ff"/>
+  <text x="43" y="574" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" font-weight="600" fill="#1d4ed8">ZL</text>
+  <text x="64" y="574" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">张岚 · 客服主管</text>
+
+  <!-- 顶栏 -->
+  <rect x="236" y="36" width="704" height="56" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="252" y="50" width="420" height="28" rx="7" fill="#f1f5f9"/>
+  <circle cx="270" cy="64" r="6" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
+  <line x1="274.5" y1="68.5" x2="279" y2="64" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="286" y="68" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11.5" fill="#94a3b8">搜索工单号、标题或客户</text>
+  <circle cx="902" cy="64" r="15" fill="#eff6ff"/>
+  <text x="896.5" y="68.5" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" font-weight="600" fill="#1d4ed8">ZL</text>
+
+  <!-- 页头 -->
+  <text x="252" y="134" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="700" fill="#0f172a">工单列表</text>
+  <text x="252" y="156" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">共 128 条，按更新时间排序</text>
+  <rect x="828" y="114" width="112" height="36" rx="8" fill="#1d4ed8"/>
+  <text x="850" y="137" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12.5" fill="#ffffff">新建工单</text>
+
+  <!-- 工具栏 -->
+  <rect x="252" y="176" width="66" height="28" rx="999" fill="#1d4ed8"/>
+  <text x="262" y="195" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11.5" fill="#ffffff">全部 128</text>
+  <rect x="326" y="176" width="78" height="28" rx="999" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="338" y="195" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11.5" fill="#64748b">待处理 12</text>
+  <rect x="412" y="176" width="78" height="28" rx="999" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="424" y="195" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11.5" fill="#64748b">处理中 8</text>
+  <rect x="498" y="176" width="80" height="28" rx="999" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="510" y="195" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11.5" fill="#64748b">已解决 108</text>
+  <rect x="776" y="176" width="112" height="28" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="788" y="195" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11.5" fill="#64748b">全部优先级</text>
+  <path d="M 874 186 l 4 5 l 4 -5 z" fill="#94a3b8"/>
+
+  <!-- 卡片网格：两列两行 -->
+  <g>
+    <rect x="252" y="224" width="328" height="152" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="272" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13.5" font-weight="600" fill="#0f172a">打印机无法连接</text>
+    <rect x="484" y="238" width="62" height="22" rx="999" fill="#fffbeb"/>
+    <text x="496" y="253" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#92400e">处理中</text>
+    <text x="272" y="274" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b">TK-2041 · 高优先级 · 张岚</text>
+    <text x="272" y="294" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">三楼东区共享打印机离线，影响 12 人。</text>
+    <text x="272" y="310" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">已重启打印服务仍未恢复。</text>
+    <line x1="272" y1="324" x2="560" y2="324" stroke="#e2e8f0"/>
+    <text x="272" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#b91c1c">SLA 剩余 3h 20m</text>
+    <text x="530" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b" text-anchor="end">10:24 更新</text>
+
+    <rect x="596" y="224" width="328" height="152" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="616" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13.5" font-weight="600" fill="#0f172a">VPN 客户端证书过期</text>
+    <rect x="852" y="238" width="56" height="22" rx="999" fill="#fef2f2"/>
+    <text x="862" y="253" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#b91c1c">待处理</text>
+    <text x="616" y="274" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b">TK-2042 · 高优先级 · 李澄</text>
+    <text x="616" y="294" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">出差同事的 VPN 证书到期，</text>
+    <text x="616" y="310" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">需要重新签发并指导安装。</text>
+    <line x1="616" y1="324" x2="904" y2="324" stroke="#e2e8f0"/>
+    <text x="616" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#b91c1c">SLA 剩余 1h 05m</text>
+    <text x="874" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b" text-anchor="end">09:47 更新</text>
+  </g>
+  <g>
+    <rect x="252" y="396" width="328" height="152" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="272" y="424" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13.5" font-weight="600" fill="#0f172a">会议室投屏无信号</text>
+    <rect x="484" y="410" width="62" height="22" rx="999" fill="#ecfdf5"/>
+    <text x="496" y="425" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">已解决</text>
+    <text x="272" y="446" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b">TK-2036 · 中优先级 · 王晴</text>
+    <text x="272" y="466" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">HDMI 分配器电源故障，已更换，</text>
+    <text x="272" y="482" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">等待用户确认。</text>
+    <line x1="272" y1="496" x2="560" y2="496" stroke="#e2e8f0"/>
+    <text x="272" y="520" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#166534">SLA 达标</text>
+    <text x="530" y="520" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b" text-anchor="end">昨天 17:12</text>
+
+    <rect x="596" y="396" width="328" height="152" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="616" y="424" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13.5" font-weight="600" fill="#0f172a">报销系统登录报错</text>
+    <rect x="852" y="410" width="62" height="22" rx="999" fill="#fffbeb"/>
+    <text x="864" y="425" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#92400e">处理中</text>
+    <text x="616" y="446" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b">TK-2029 · 低优先级 · 周航</text>
+    <text x="616" y="466" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">单点登录回调地址变更导致</text>
+    <text x="616" y="482" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">报错，已提工单给平台组。</text>
+    <line x1="616" y1="496" x2="904" y2="496" stroke="#e2e8f0"/>
+    <text x="616" y="520" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#b91c1c">SLA 剩余 6h 40m</text>
+    <text x="874" y="520" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b" text-anchor="end">08:30 更新</text>
+  </g>
+
+  <!-- 分页 -->
+  <text x="252" y="588" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10.5" fill="#64748b">第 1 / 32 页 · 每页 4 条</text>
+  <rect x="828" y="572" width="28" height="24" rx="6" fill="#1d4ed8"/>
+  <text x="842" y="588" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">1</text>
+  <rect x="860" y="572" width="28" height="24" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="874" y="588" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">2</text>
+  <rect x="892" y="572" width="28" height="24" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+  <path d="M 900 580 l -3.5 4.5 h 7 z" fill="#64748b" transform="rotate(90 903.5 584)"/>
+  <text x="916" y="588" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">›</text>
+</svg>

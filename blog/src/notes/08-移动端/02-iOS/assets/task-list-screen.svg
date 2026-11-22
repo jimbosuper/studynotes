@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="700" viewBox="0 0 780 700">
+  <rect width="780" height="700" fill="#f8fafc"/>
+  <text x="40" y="24" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#94a3b8">巡检任务 App 界面效果（iOS 18 / SwiftUI）</text>
+
+  <!-- ============ 左：任务列表 ============ -->
+  <rect x="40" y="48" width="330" height="620" rx="40" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="155" y="62" width="100" height="26" rx="13" fill="#0f172a"/>
+  <text x="62" y="88" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" font-weight="600" fill="#334155">9:41</text>
+  <rect x="298" y="80" width="16" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="318" y="80" width="22" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="344" y="80" width="14" height="8" rx="2" fill="#cbd5e1"/>
+
+  <text x="62" y="142" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="26" font-weight="700" fill="#0f172a">巡检任务</text>
+  <text x="62" y="166" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">今日 12 项 · 逾期 2 项 · 离线 3 条</text>
+
+  <!-- 筛选 -->
+  <rect x="62" y="184" width="48" height="30" rx="15" fill="#2563eb"/>
+  <text x="86" y="203" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff" text-anchor="middle">全部</text>
+  <rect x="118" y="184" width="64" height="30" rx="15" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="150" y="203" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569" text-anchor="middle">待处理</text>
+  <rect x="190" y="184" width="64" height="30" rx="15" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="222" y="203" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569" text-anchor="middle">进行中</text>
+  <rect x="262" y="184" width="64" height="30" rx="15" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="294" y="203" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569" text-anchor="middle">已完成</text>
+
+  <!-- 行 1：逾期待处理 -->
+  <rect x="56" y="234" width="298" height="86" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="56" y="234" width="3" height="86" rx="1.5" fill="#f59e0b"/>
+  <circle cx="72" cy="262" r="4" fill="#dc2626"/>
+  <text x="84" y="267" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#0f172a">A 栋 3 层配电箱</text>
+  <text x="84" y="288" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">设备 TS-204 · 10:30 前</text>
+  <text x="84" y="306" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#dc2626">已逾期 1 小时 12 分</text>
+  <rect x="276" y="249" width="60" height="22" rx="11" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="306" y="264" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#92400e" text-anchor="middle">待处理</text>
+
+  <!-- 行 2：进行中 -->
+  <rect x="56" y="328" width="298" height="86" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="56" y="328" width="3" height="86" rx="1.5" fill="#2563eb"/>
+  <text x="84" y="361" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#0f172a">B 栋 1 层水泵房</text>
+  <text x="84" y="382" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">设备 PU-011 · 11:00 前</text>
+  <text x="84" y="400" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">王巡检已到场</text>
+  <rect x="276" y="343" width="60" height="22" rx="11" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="306" y="358" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1e3a8a" text-anchor="middle">进行中</text>
+
+  <!-- 行 3：已完成 -->
+  <rect x="56" y="422" width="298" height="86" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="56" y="422" width="3" height="86" rx="1.5" fill="#16a34a"/>
+  <text x="84" y="455" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#0f172a">C 栋 屋顶光伏板</text>
+  <text x="84" y="476" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">设备 PV-003 · 昨日 16:00</text>
+  <text x="84" y="494" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">已同步 · 09:12</text>
+  <rect x="276" y="437" width="60" height="22" rx="11" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="306" y="452" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534" text-anchor="middle">已完成</text>
+
+  <!-- 离线同步提示 -->
+  <rect x="56" y="520" width="298" height="44" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+  <circle cx="74" cy="542" r="4" fill="#2563eb"/>
+  <text x="88" y="546" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1e40af">离线 3 条 · 联网后自动同步</text>
+
+  <!-- 底部标签栏 -->
+  <line x1="42" y1="592" x2="368" y2="592" stroke="#e2e8f0"/>
+  <circle cx="118" cy="614" r="7" fill="#2563eb"/>
+  <text x="118" y="636" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#2563eb" text-anchor="middle">任务</text>
+  <circle cx="205" cy="614" r="7" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="205" y="636" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#64748b" text-anchor="middle">同步</text>
+  <circle cx="292" cy="614" r="7" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="292" y="636" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#64748b" text-anchor="middle">我的</text>
+  <rect x="165" y="648" width="80" height="4" rx="2" fill="#cbd5e1"/>
+
+  <!-- ============ 右：任务详情 ============ -->
+  <rect x="410" y="48" width="330" height="620" rx="40" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="525" y="62" width="100" height="26" rx="13" fill="#0f172a"/>
+  <text x="432" y="88" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" font-weight="600" fill="#334155">9:41</text>
+  <rect x="668" y="80" width="16" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="688" y="80" width="22" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="714" y="80" width="14" height="8" rx="2" fill="#cbd5e1"/>
+
+  <!-- 导航栏 -->
+  <path d="M438 84 L430 92 L438 100" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+  <text x="575" y="96" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#334155" text-anchor="middle">任务详情</text>
+
+  <text x="428" y="142" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="700" fill="#0f172a">A 栋 3 层配电箱</text>
+  <text x="428" y="164" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">设备 TS-204 · 负责人 王巡检</text>
+
+  <!-- 信息卡 -->
+  <rect x="426" y="182" width="298" height="132" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="442" y="210" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">计划时间</text>
+  <text x="708" y="210" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#0f172a" text-anchor="end">今天 10:30</text>
+  <line x1="442" y1="226" x2="708" y2="226" stroke="#f1f5f9"/>
+  <text x="442" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">上次点检</text>
+  <text x="708" y="252" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#0f172a" text-anchor="end">11-06 09:20</text>
+  <line x1="442" y1="268" x2="708" y2="268" stroke="#f1f5f9"/>
+  <text x="442" y="294" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">本地状态</text>
+  <text x="708" y="294" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#166534" text-anchor="end">已保存，待同步</text>
+
+  <!-- 状态分段 -->
+  <text x="426" y="342" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">状态</text>
+  <rect x="426" y="352" width="298" height="36" rx="9" fill="#eef2f7"/>
+  <rect x="525" y="355" width="96" height="30" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="466" y="374" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">待处理</text>
+  <text x="573" y="374" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" font-weight="600" fill="#1e3a8a" text-anchor="middle">进行中</text>
+  <text x="678" y="374" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">已完成</text>
+
+  <!-- 备注 -->
+  <text x="426" y="416" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">备注</text>
+  <rect x="426" y="426" width="298" height="72" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="442" y="452" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">进线柜温度偏高，已拍照留存；</text>
+  <text x="442" y="472" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">待电工班复核后更换散热风扇。</text>
+
+  <!-- 照片 -->
+  <text x="426" y="524" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">现场照片</text>
+  <rect x="426" y="532" width="64" height="52" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+  <text x="458" y="562" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">照片 1</text>
+  <rect x="498" y="532" width="64" height="52" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+  <text x="530" y="562" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">照片 2</text>
+  <rect x="570" y="532" width="64" height="52" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+  <text x="602" y="562" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">添加</text>
+
+  <!-- 同步提示与主操作 -->
+  <rect x="426" y="592" width="298" height="30" rx="10" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="575" y="612" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534" text-anchor="middle">已保存到本地，联网后自动同步</text>
+  <rect x="426" y="630" width="298" height="34" rx="10" fill="#2563eb"/>
+  <text x="575" y="652" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#ffffff" text-anchor="middle">标记完成</text>
+  <rect x="535" y="658" width="80" height="4" rx="2" fill="#cbd5e1"/>
+
+  <text x="40" y="690" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">配色：琥珀=待处理，蓝=进行中，绿=已完成；红点=逾期，底部提示=离线写入待同步。</text>
+</svg>

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="470" viewBox="0 0 760 470">
+  <rect width="760" height="470" fill="#f8fafc"/>
+  <text x="24" y="30" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#1f2937">Button 组件矩阵：4 变体 × 3 尺寸 × 3 状态</text>
+  <text x="24" y="50" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">组件只暴露语义参数，颜色和尺寸由令牌决定</text>
+
+  <!-- 列标题 -->
+  <text x="300" y="84" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">sm · 28px</text>
+  <text x="430" y="84" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">md · 36px</text>
+  <text x="560" y="84" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">lg · 44px</text>
+
+  <!-- primary 行 -->
+  <text x="40" y="130" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">primary</text>
+  <rect x="296" y="110" width="72" height="28" rx="6" fill="#2563eb"/>
+  <text x="314" y="128" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">按钮</text>
+  <rect x="420" y="106" width="88" height="36" rx="8" fill="#2563eb"/>
+  <text x="441" y="129" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">按钮</text>
+  <rect x="552" y="102" width="104" height="44" rx="8" fill="#2563eb"/>
+  <text x="575" y="129" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#ffffff">按钮</text>
+
+  <!-- secondary 行 -->
+  <text x="40" y="190" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">secondary</text>
+  <rect x="296" y="170" width="72" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="314" y="188" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#334155">按钮</text>
+  <rect x="420" y="166" width="88" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="441" y="189" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#334155">按钮</text>
+  <rect x="552" y="162" width="104" height="44" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="575" y="189" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#334155">按钮</text>
+
+  <!-- ghost 行 -->
+  <text x="40" y="250" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">ghost</text>
+  <rect x="296" y="230" width="72" height="28" rx="6" fill="none"/>
+  <text x="314" y="248" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#2563eb">按钮</text>
+  <rect x="420" y="226" width="88" height="36" rx="8" fill="none"/>
+  <text x="441" y="249" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#2563eb">按钮</text>
+  <rect x="552" y="222" width="104" height="44" rx="8" fill="none"/>
+  <text x="575" y="249" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#2563eb">按钮</text>
+
+  <!-- danger 行 -->
+  <text x="40" y="310" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">danger</text>
+  <rect x="296" y="290" width="72" height="28" rx="6" fill="#b91c1c"/>
+  <text x="314" y="308" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#ffffff">按钮</text>
+  <rect x="420" y="286" width="88" height="36" rx="8" fill="#b91c1c"/>
+  <text x="441" y="309" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">按钮</text>
+  <rect x="552" y="282" width="104" height="44" rx="8" fill="#b91c1c"/>
+  <text x="575" y="309" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#ffffff">按钮</text>
+
+  <!-- 状态 -->
+  <rect x="24" y="340" width="712" height="112" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="366" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#1e3a8a">primary 的状态</text>
+
+  <rect x="40" y="384" width="100" height="36" rx="8" fill="#2563eb"/>
+  <text x="66" y="407" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">默认</text>
+
+  <rect x="164" y="384" width="100" height="36" rx="8" fill="#1d4ed8"/>
+  <text x="190" y="407" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">悬停</text>
+
+  <rect x="288" y="384" width="100" height="36" rx="8" fill="#e2e8f0"/>
+  <text x="326" y="407" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">禁用</text>
+
+  <text x="412" y="400" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">触控最小 44×44</text>
+  <text x="412" y="416" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">视觉尺寸可小，命中区不能小</text>
+</svg>

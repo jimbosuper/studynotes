@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# 工具/会话目录
+.mimosa/
+.v2c/
+.openchamber/
+.sync-tmp/
+
+# 编辑器
+.obsidian/
+.vscode/
+.idea/

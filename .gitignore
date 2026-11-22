@@ -1,0 +1,8 @@
+.DS_Store
+*.log
+.openchamber/
+
+# 工作流要求：临时区整目录不入库
+docs/99-tmp/
+
+# 站点工程的依赖与产物由 blog/.gitignore 负责

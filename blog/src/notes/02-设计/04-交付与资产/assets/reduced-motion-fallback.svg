@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="404" viewBox="0 0 720 404">
+  <rect width="720" height="404" fill="#f8fafc"/>
+  <text x="24" y="26" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#94a3b8">减少动态效果：保留反馈，去掉位移、缩放与视差</text>
+
+  <!-- 左：完整动效 -->
+  <rect x="24" y="42" width="332" height="336" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="40" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">完整动效</text>
+  <text x="40" y="84" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">抽屉滑入 240ms + 内容交错 40ms</text>
+
+  <!-- 窗口 -->
+  <rect x="40" y="98" width="300" height="220" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="40" y="98" width="300" height="20" rx="6" fill="#f1f5f9"/>
+  <circle cx="52" cy="108" r="2.5" fill="#cbd5e1"/>
+  <circle cx="62" cy="108" r="2.5" fill="#cbd5e1"/>
+  <circle cx="72" cy="108" r="2.5" fill="#cbd5e1"/>
+
+  <!-- 底层列表 -->
+  <rect x="56" y="132" width="130" height="10" rx="4" fill="#e2e8f0"/>
+  <rect x="56" y="152" width="160" height="8" rx="4" fill="#eef2f7"/>
+  <rect x="56" y="170" width="140" height="8" rx="4" fill="#eef2f7"/>
+  <rect x="56" y="188" width="150" height="8" rx="4" fill="#eef2f7"/>
+
+  <!-- 抽屉（右移出部分，表示滑入中） -->
+  <rect x="222" y="130" width="104" height="168" rx="6" fill="#ffffff" stroke="#93c5fd"/>
+  <text x="234" y="150" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" font-weight="600" fill="#1e3a8a">订单详情</text>
+  <rect x="234" y="160" width="60" height="6" rx="3" fill="#dbeafe"/>
+  <rect x="234" y="174" width="78" height="6" rx="3" fill="#dbeafe"/>
+  <!-- 交错内容 1/2/3 -->
+  <rect x="234" y="192" width="80" height="22" rx="4" fill="#eff6ff"/>
+  <text x="240" y="207" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#1d4ed8">1 商品</text>
+  <rect x="234" y="220" width="80" height="22" rx="4" fill="#eff6ff"/>
+  <text x="240" y="235" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#1d4ed8">2 金额</text>
+  <rect x="234" y="248" width="80" height="22" rx="4" fill="#eff6ff"/>
+  <text x="240" y="263" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#1d4ed8">3 日志</text>
+
+  <!-- 位移箭头 -->
+  <path d="M320,214 L252,214" stroke="#f59e0b" stroke-width="2" fill="none" marker-end="url(#arrowL)"/>
+  <defs>
+    <marker id="arrowL" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#f59e0b"/>
+    </marker>
+    <marker id="arrowR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#16a34a"/>
+    </marker>
+  </defs>
+  <text x="238" y="310" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#b45309">translateX 100% → 0</text>
+
+  <text x="40" y="342" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">遮罩淡入、面板位移、条目逐个上移</text>
+  <text x="40" y="360" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">前庭敏感用户会感到晃动或眩晕</text>
+
+  <!-- 右：降级后 -->
+  <rect x="372" y="42" width="324" height="336" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="388" y="66" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#1f2937">prefers-reduced-motion: reduce</text>
+  <text x="388" y="84" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">同一次打开：只做透明度变化</text>
+
+  <rect x="388" y="98" width="292" height="220" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="388" y="98" width="292" height="20" rx="6" fill="#f1f5f9"/>
+  <circle cx="400" cy="108" r="2.5" fill="#cbd5e1"/>
+  <circle cx="410" cy="108" r="2.5" fill="#cbd5e1"/>
+  <circle cx="420" cy="108" r="2.5" fill="#cbd5e1"/>
+
+  <rect x="404" y="132" width="120" height="10" rx="4" fill="#e2e8f0"/>
+  <rect x="404" y="152" width="140" height="8" rx="4" fill="#eef2f7"/>
+  <rect x="404" y="170" width="120" height="8" rx="4" fill="#eef2f7"/>
+
+  <!-- 抽屉直接就位，无位移 -->
+  <rect x="560" y="130" width="104" height="168" rx="6" fill="#ffffff" stroke="#93c5fd"/>
+  <text x="572" y="150" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" font-weight="600" fill="#1e3a8a">订单详情</text>
+  <rect x="572" y="160" width="60" height="6" rx="3" fill="#dbeafe"/>
+  <rect x="572" y="174" width="78" height="6" rx="3" fill="#dbeafe"/>
+  <rect x="572" y="192" width="80" height="22" rx="4" fill="#eff6ff"/>
+  <text x="578" y="207" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#1d4ed8">1 商品</text>
+  <rect x="572" y="220" width="80" height="22" rx="4" fill="#eff6ff"/>
+  <text x="578" y="235" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#1d4ed8">2 金额</text>
+  <rect x="572" y="248" width="80" height="22" rx="4" fill="#eff6ff"/>
+  <text x="578" y="263" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="9" fill="#1d4ed8">3 日志</text>
+
+  <!-- 淡入标识 -->
+  <rect x="470" y="196" width="64" height="30" rx="15" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="482" y="215" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#166534">opacity 0→1</text>
+  <path d="M540,211 L556,211" stroke="#16a34a" stroke-width="2" marker-end="url(#arrowR)"/>
+
+  <text x="388" y="342" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">位置、尺寸不变；加载态改为静态进度文字</text>
+  <text x="388" y="360" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">Lottie 停在第 1 帧，不播放循环</text>
+
+  <!-- 底部说明 -->
+  <rect x="24" y="388" width="672" height="0" fill="none"/>
+</svg>

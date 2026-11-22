@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="760" viewBox="0 0 1180 760">
+  <rect width="1180" height="760" fill="#f1f5f9"/>
+
+  <!-- 侧边栏 -->
+  <rect x="0" y="0" width="212" height="760" fill="#ffffff"/>
+  <line x1="212" y1="0" x2="212" y2="760" stroke="#e2e8f0"/>
+  <rect x="20" y="20" width="26" height="26" rx="7" fill="#1d4ed8"/>
+  <text x="58" y="39" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" font-weight="600" fill="#0f172a">客服中台</text>
+
+  <rect x="12" y="72" width="188" height="38" rx="7" fill="#eff6ff"/>
+  <text x="30" y="97" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1d4ed8">客户管理</text>
+  <text x="30" y="139" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">工单中心</text>
+  <text x="30" y="181" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">数据看板</text>
+  <text x="30" y="223" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#475569">团队设置</text>
+
+  <line x1="12" y1="256" x2="200" y2="256" stroke="#f1f5f9"/>
+  <text x="30" y="286" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">当前账号</text>
+  <circle cx="38" cy="314" r="12" fill="#dbeafe"/>
+  <text x="58" y="318" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">李运营</text>
+  <text x="30" y="342" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">客户管理员</text>
+
+  <!-- 顶栏 -->
+  <rect x="212" y="0" width="968" height="56" fill="#ffffff"/>
+  <line x1="212" y1="56" x2="1180" y2="56" stroke="#e2e8f0"/>
+  <text x="236" y="35" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#64748b">客户管理</text>
+  <text x="300" y="35" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#cbd5e1">/</text>
+  <text x="316" y="35" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">客户列表</text>
+  <rect x="1024" y="14" width="60" height="28" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="1036" y="33" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">帮助</text>
+  <circle cx="1120" cy="28" r="13" fill="#e2e8f0"/>
+  <text x="1114" y="32" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#475569">李</text>
+
+  <!-- 页头 -->
+  <text x="236" y="96" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#0f172a">客户列表</text>
+  <text x="236" y="120" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">共 12,480 位客户，最近同步 2 分钟前</text>
+
+  <!-- 操作按钮 -->
+  <rect x="862" y="80" width="88" height="32" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="882" y="101" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#334155">批量导入</text>
+  <rect x="958" y="80" width="76" height="32" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="980" y="101" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#334155">导出</text>
+  <rect x="1042" y="80" width="98" height="32" rx="6" fill="#1d4ed8"/>
+  <text x="1062" y="101" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">新建客户</text>
+
+  <!-- 筛选卡 -->
+  <rect x="236" y="140" width="904" height="76" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="256" y="166" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">关键词</text>
+  <rect x="256" y="174" width="240" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="268" y="193" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">客户名或手机号</text>
+
+  <text x="514" y="166" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">等级</text>
+  <rect x="514" y="174" width="140" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="526" y="193" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">重点客户</text>
+  <text x="636" y="193" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">▾</text>
+
+  <text x="672" y="166" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">负责人</text>
+  <rect x="672" y="174" width="150" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="684" y="193" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1f2937">全部</text>
+  <text x="804" y="193" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">▾</text>
+
+  <rect x="840" y="172" width="72" height="32" rx="6" fill="#1d4ed8"/>
+  <text x="864" y="193" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">查询</text>
+  <rect x="920" y="172" width="72" height="32" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="944" y="193" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#334155">重置</text>
+  <rect x="1004" y="172" width="112" height="32" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="1022" y="193" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">列设置</text>
+
+  <!-- 表格卡 -->
+  <rect x="236" y="232" width="904" height="440" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="236" y="232" width="904" height="40" rx="8" fill="#f8fafc"/>
+  <rect x="236" y="256" width="904" height="16" fill="#f8fafc"/>
+
+  <text x="256" y="257" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">#</text>
+  <text x="298" y="257" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">客户</text>
+  <text x="470" y="257" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">手机号</text>
+  <text x="626" y="257" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">等级</text>
+  <text x="726" y="257" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">负责人</text>
+  <text x="846" y="257" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">更新时间</text>
+  <text x="1050" y="257" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">操作</text>
+
+  <text x="256" y="302" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">01</text>
+  <text x="298" y="302" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">杭州云杉科技</text>
+  <text x="470" y="302" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">138****2041</text>
+  <rect x="626" y="289" width="46" height="20" rx="10" fill="#fef2f2"/>
+  <text x="637" y="303" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#b91c1c">重点</text>
+  <text x="726" y="302" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">王敏</text>
+  <text x="846" y="302" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">11-13 10:24</text>
+  <text x="1050" y="302" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">编辑</text>
+  <line x1="256" y1="318" x2="1120" y2="318" stroke="#f1f5f9"/>
+
+  <text x="256" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">02</text>
+  <text x="298" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">苏州恒泰物流</text>
+  <text x="470" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">159****7732</text>
+  <rect x="626" y="335" width="46" height="20" rx="10" fill="#eff6ff"/>
+  <text x="637" y="349" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">普通</text>
+  <text x="726" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">赵磊</text>
+  <text x="846" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">11-13 09:51</text>
+  <text x="1050" y="348" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">编辑</text>
+  <line x1="256" y1="364" x2="1120" y2="364" stroke="#f1f5f9"/>
+
+  <text x="256" y="394" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">03</text>
+  <text x="298" y="394" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">上海一川设计</text>
+  <text x="470" y="394" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">186****0198</text>
+  <rect x="626" y="381" width="46" height="20" rx="10" fill="#f8fafc"/>
+  <text x="637" y="395" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#475569">观察</text>
+  <text x="726" y="394" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">王敏</text>
+  <text x="846" y="394" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">11-12 18:07</text>
+  <text x="1050" y="394" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">编辑</text>
+  <line x1="256" y1="410" x2="1120" y2="410" stroke="#f1f5f9"/>
+
+  <text x="256" y="440" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">04</text>
+  <text x="298" y="440" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">北京麦田教育</text>
+  <text x="470" y="440" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">137****5580</text>
+  <rect x="626" y="427" width="46" height="20" rx="10" fill="#eff6ff"/>
+  <text x="637" y="441" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1d4ed8">普通</text>
+  <text x="726" y="440" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">陈曦</text>
+  <text x="846" y="440" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">11-12 16:32</text>
+  <text x="1050" y="440" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">编辑</text>
+  <line x1="256" y1="456" x2="1120" y2="456" stroke="#f1f5f9"/>
+
+  <text x="256" y="486" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#94a3b8">05</text>
+  <text x="298" y="486" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#1f2937">深圳海拓电子</text>
+  <text x="470" y="486" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">135****6612</text>
+  <rect x="626" y="473" width="46" height="20" rx="10" fill="#fef2f2"/>
+  <text x="637" y="487" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#b91c1c">重点</text>
+  <text x="726" y="486" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">赵磊</text>
+  <text x="846" y="486" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#64748b">11-12 14:05</text>
+  <text x="1050" y="486" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">编辑</text>
+
+  <!-- 分页 -->
+  <text x="256" y="646" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">共 12,480 条</text>
+  <rect x="866" y="630" width="28" height="26" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="876" y="648" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">‹</text>
+  <rect x="902" y="630" width="28" height="26" rx="5" fill="#1d4ed8"/>
+  <text x="912" y="648" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#ffffff">1</text>
+  <rect x="938" y="630" width="28" height="26" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="948" y="648" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#475569">2</text>
+  <rect x="974" y="630" width="28" height="26" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="984" y="648" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#475569">3</text>
+  <rect x="1010" y="630" width="64" height="26" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1024" y="648" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#475569">20 条/页</text>
+
+  <!-- 导入抽屉 -->
+  <rect x="860" y="0" width="320" height="760" fill="#ffffff"/>
+  <line x1="860" y1="0" x2="860" y2="760" stroke="#e2e8f0"/>
+  <text x="884" y="38" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="15" font-weight="600" fill="#0f172a">批量导入客户</text>
+  <text x="1132" y="38" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" fill="#94a3b8">×</text>
+
+  <rect x="884" y="60" width="272" height="34" rx="6" fill="#eff6ff"/>
+  <text x="898" y="82" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#1d4ed8">可导入 486 条，3 行有问题</text>
+
+  <rect x="884" y="110" width="272" height="80" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-dasharray="4 4"/>
+  <text x="948" y="146" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#475569">把 Excel 拖到这里</text>
+  <text x="960" y="166" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">或点击选择 .xlsx</text>
+
+  <text x="884" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">Excel 行号</text>
+  <text x="1000" y="220" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">问题</text>
+  <rect x="884" y="228" width="272" height="34" rx="5" fill="#fef2f2"/>
+  <text x="892" y="249" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#b91c1c">第 18 行</text>
+  <text x="1000" y="249" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#7f1d1d">手机号格式不正确</text>
+  <rect x="884" y="266" width="272" height="34" rx="5" fill="#fef2f2"/>
+  <text x="892" y="287" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#b91c1c">第 42 行</text>
+  <text x="1000" y="287" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#7f1d1d">客户名至少 2 个字</text>
+  <rect x="884" y="304" width="272" height="34" rx="5" fill="#fef2f2"/>
+  <text x="892" y="325" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#b91c1c">第 77 行</text>
+  <text x="1000" y="325" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#7f1d1d">等级只能填 A/B/C</text>
+
+  <text x="884" y="372" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#64748b">合法数据预览（前 3 条）</text>
+  <rect x="884" y="382" width="272" height="26" rx="5" fill="#f8fafc"/>
+  <text x="892" y="399" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#475569">客户名 / 手机号 / 等级</text>
+  <text x="892" y="426" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">杭州云杉科技 / 138****2041 / A</text>
+  <text x="892" y="448" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">苏州恒泰物流 / 159****7732 / B</text>
+  <text x="892" y="470" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#1f2937">上海一川设计 / 186****0198 / C</text>
+
+  <rect x="884" y="500" width="272" height="34" rx="6" fill="#1d4ed8"/>
+  <text x="984" y="522" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#ffffff">确认导入 486 条</text>
+  <text x="884" y="560" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">确认后按 200 条一批提交，失败行会回传</text>
+
+  <text x="24" y="744" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#94a3b8">浅色管理模式：左侧菜单由后端菜单树生成，列表带筛选与分页，导入抽屉展示错误行号</text>
+</svg>

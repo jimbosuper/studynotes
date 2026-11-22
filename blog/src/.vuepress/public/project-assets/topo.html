@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>妙妙屋部署拓扑 · v1.0.0</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#fff; --fg:#1f2230; --mute:#6b7280;
+  --line:#d7dbe3; --accent:#2f845d; --accent2:#2f7df6; --warn:#b7791f;
+  --radius:12px; --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.6}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--mute);font-size:13px;margin:0 0 20px}
+.stage{position:relative;max-width:1100px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px 24px 20px}
+svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--mute)}
+.legend i{display:inline-block;width:22px;height:0;border-top-width:2px;border-top-style:solid;vertical-align:middle;margin-right:6px}
+.note{margin-top:18px;padding:14px 16px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:13px}
+.note h2{font-size:13px;margin:0 0 6px;color:var(--accent)}
+.note ul{margin:0;padding-left:18px}
+.note li{margin:2px 0}
+table{width:100%;border-collapse:collapse;margin-top:18px;font-size:13px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left}
+th{background:#f2f4f7;font-weight:600}
+</style>
+</head>
+<body>
+
+<h1>妙妙屋站点 · 部署拓扑 v1.0.0</h1>
+<p class="sub">一个静态站点，三段链路：GitHub 拉代码 → Cloudflare 构建 → 边缘分发。无自建服务器、无数据库、无中间件。</p>
+
+<div class="stage">
+<svg viewBox="0 0 1040 400" role="img" aria-label="部署拓扑">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2f845d"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2f7df6"/>
+    </marker>
+    <marker id="arrowWarn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b7791f"/>
+    </marker>
+  </defs>
+
+  <!-- 作者侧 -->
+  <g>
+    <rect x="20" y="150" width="180" height="90" rx="10" fill="#fff" stroke="#d7dbe3"/>
+    <text x="110" y="182" text-anchor="middle" font-size="14" font-weight="600" fill="#1f2230">站点作者</text>
+    <text x="110" y="204" text-anchor="middle" font-size="12" fill="#6b7280">本地 npm run sync</text>
+    <text x="110" y="222" text-anchor="middle" font-size="12" fill="#6b7280">+ npm run build</text>
+  </g>
+
+  <!-- 仓库 -->
+  <g>
+    <rect x="270" y="150" width="200" height="90" rx="10" fill="#fff" stroke="#2f845d" stroke-width="1.5"/>
+    <text x="370" y="178" text-anchor="middle" font-size="14" font-weight="600" fill="#1f2230">GitHub</text>
+    <text x="370" y="200" text-anchor="middle" font-size="12" fill="#6b7280">jimbosuper/studynotes</text>
+    <text x="370" y="219" text-anchor="middle" font-size="12" fill="#2f845d">分支 master</text>
+  </g>
+
+  <!-- 构建区（安全组） -->
+  <rect x="530" y="90" width="230" height="210" rx="12" fill="#f4fbf8" stroke="#2f845d" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="645" y="116" text-anchor="middle" font-size="12" font-weight="600" fill="#2f845d">构建区（Cloudflare 侧）</text>
+  <g>
+    <rect x="552" y="140" width="186" height="64" rx="9" fill="#fff" stroke="#d7dbe3"/>
+    <text x="645" y="166" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2230">Cloudflare 构建机</text>
+    <text x="645" y="186" text-anchor="middle" font-size="11.5" fill="#6b7280">Node 22 · npm run build</text>
+  </g>
+  <g>
+    <rect x="552" y="222" width="186" height="60" rx="9" fill="#fff" stroke="#d7dbe3"/>
+    <text x="645" y="246" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2230">产物 dist/</text>
+    <text x="645" y="264" text-anchor="middle" font-size="11.5" fill="#6b7280">365 页 · 1,841 文件</text>
+  </g>
+
+  <!-- CDN -->
+  <g>
+    <rect x="820" y="150" width="200" height="90" rx="10" fill="#fff" stroke="#2f7df6" stroke-width="1.5"/>
+    <text x="920" y="178" text-anchor="middle" font-size="14" font-weight="600" fill="#1f2230">Cloudflare 边缘</text>
+    <text x="920" y="200" text-anchor="middle" font-size="12" fill="#6b7280">全球 CDN · HTTPS 443</text>
+    <text x="920" y="219" text-anchor="middle" font-size="12" fill="#2f7df6">studynotes-90w.pages.dev</text>
+  </g>
+
+  <!-- 连线 -->
+  <line x1="200" y1="195" x2="266" y2="195" stroke="#2f845d" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="233" y="186" text-anchor="middle" font-size="11" fill="#2f845d">git push</text>
+
+  <line x1="470" y1="180" x2="548" y2="170" stroke="#2f845d" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="509" y="164" text-anchor="middle" font-size="11" fill="#2f845d">webhook</text>
+
+  <line x1="645" y1="204" x2="645" y2="218" stroke="#2f845d" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <line x1="738" y1="252" x2="816" y2="215" stroke="#2f7df6" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <text x="777" y="248" text-anchor="middle" font-size="11" fill="#2f7df6">上传产物</text>
+
+  <!-- 读者 -->
+  <g>
+    <rect x="820" y="300" width="200" height="70" rx="10" fill="#fff" stroke="#d7dbe3"/>
+    <text x="920" y="326" text-anchor="middle" font-size="14" font-weight="600" fill="#1f2230">读者浏览器</text>
+    <text x="920" y="348" text-anchor="middle" font-size="12" fill="#6b7280">HTML 直出，无运行时渲染</text>
+  </g>
+  <line x1="920" y1="300" x2="920" y2="244" stroke="#2f7df6" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <text x="962" y="274" text-anchor="middle" font-size="11" fill="#2f7df6">HTTPS GET</text>
+
+  <!-- 内容源（虚线，非生产依赖） -->
+  <g opacity=".85">
+    <rect x="270" y="290" width="200" height="76" rx="10" fill="#fff" stroke="#b7791f" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="370" y="314" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2230">两个内容源仓库</text>
+    <text x="370" y="334" text-anchor="middle" font-size="11.5" fill="#6b7280">fullstack-notes</text>
+    <text x="370" y="351" text-anchor="middle" font-size="11.5" fill="#6b7280">fullstack-workflow</text>
+  </g>
+  <line x1="110" y1="240" x2="266" y2="300" stroke="#b7791f" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowWarn)"/>
+  <text x="176" y="282" text-anchor="middle" font-size="11" fill="#b7791f">仅本地 sync 读</text>
+</svg>
+
+<div class="legend">
+  <span><i style="border-top-color:#2f845d"></i>发布链路</span>
+  <span><i style="border-top-color:#2f7df6"></i>访问链路</span>
+  <span><i style="border-top-color:#b7791f;border-top-style:dashed"></i>本地依赖，非生产链路</span>
+</div>
+</div>
+
+<div class="note">
+  <h2>三段链路，一条关键判断</h2>
+  <ul>
+    <li><strong>GitHub → 构建机</strong>：推 <code>master</code> 触发 webhook，Cloudflare 拉代码跑 <code>npm run build</code>。</li>
+    <li><strong>构建机 → 边缘</strong>：产物上传到全球 CDN，读者从最近节点拿 HTML。</li>
+    <li><strong>内容源仓库不在生产链路上</strong>（橙色虚线）。线上不跑 <code>sync</code>，因为构建环境里没有那两个目录。所以源库挂了，站点照常服务。</li>
+  </ul>
+  <table>
+    <thead><tr><th>节点</th><th>类型</th><th>挂了会怎样</th><th>能做什么</th></tr></thead>
+    <tbody>
+      <tr><td>GitHub</td><td>代码托管 + 触发</td><td>无法发布新版本；线上旧版仍可访问</td><td>等恢复，或手工上传产物</td></tr>
+      <tr><td>Cloudflare 构建机</td><td>CI</td><td>发布失败；线上保持上一版</td><td>查 Deployments 日志，修后重推</td></tr>
+      <tr><td>Cloudflare 边缘</td><td>CDN</td><td>站点不可访问</td><td>无备份托管，等恢复</td></tr>
+      <tr><td>两个内容源仓库</td><td>本地内容来源</td><td><strong>不影响线上</strong></td><td>本地已有产物，可直接构建</td></tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>
