@@ -60,13 +60,36 @@ const WORKFLOW_ORDER = [
 ];
 
 /**
+ * 全栈项目：四个项目，01 已完成，02–04 只占名字。
+ *
+ * - 目录名带序号，侧栏按序号排；01 的目录还是上线时的旧名，显示时换成项目代号。
+ * - 还没做的项目没有页面，渲染成不可点击的标题；等目录建出来，对应占位项按序号自动消失。
+ */
+const PROJECT_TITLES: Record<string, string> = {
+  "01-米奇妙妙屋": "01-Lantern 全栈博客",
+};
+
+const PROJECT_PLACEHOLDERS = [
+  "02-Janus 中转站",
+  "03-Trove 知识库",
+  "04-Haven 基层医疗",
+];
+
+const existingProjectOrders = new Set(
+  fs
+    .readdirSync(projectsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name.slice(0, 2)),
+);
+
+/**
  * 全栈项目：手写数组，逐层给 prefix。
  *
  * theme-hope 的 prefix 是逐层拼接的：父项 prefix + 本项 prefix + 叶子 link。
  * 所以每项只写自己这一层（`01-产品/`），叶子只写文件名，不加 `../` 也不带父级。
  * 之前把父级拼进来，链接会变成 `/projects/01-米奇妙妙屋/01-米奇妙妙屋/01-产品/…`。
  */
-const readProjectDir = (dir: string): SidebarArrayOptions => {
+const readProjectDir = (dir: string, root = false): SidebarArrayOptions => {
   const items: SidebarArrayOptions = [];
 
   for (const entry of fs
@@ -78,7 +101,7 @@ const readProjectDir = (dir: string): SidebarArrayOptions => {
     })) {
     if (entry.isDirectory()) {
       items.push({
-        text: entry.name,
+        text: root ? (PROJECT_TITLES[entry.name] ?? entry.name) : entry.name,
         prefix: `${entry.name}/`,
         collapsible: true,
         children: readProjectDir(path.join(dir, entry.name)),
@@ -107,7 +130,12 @@ export const sidebar: SidebarOptions = {
       children: WORKFLOW_ORDER.map(([file, text]) => ({ text, link: file })),
     },
   ],
-  "/projects/": readProjectDir(projectsDir),
+  "/projects/": [
+    ...readProjectDir(projectsDir, true),
+    ...PROJECT_PLACEHOLDERS.filter(
+      (name) => !existingProjectOrders.has(name.slice(0, 2)),
+    ).map((text) => ({ text, children: [] })),
+  ],
   "/resources/": "structure",
   "/methods/": "structure",
 };
