@@ -10,7 +10,8 @@ export default hopeTheme({
   },
 
   logo: "/avatar.png",
-  favicon: "/favicon.svg",
+  // 浏览器标签页图标与首页头像同一张图；.svg 那个是模板占位（蓝底 J 字），已替换
+  favicon: "/favicon.png",
 
   // 站点默认浅色：只有用户手动点右上角图标时才切到深色，不跟随系统
   darkmode: "toggle",
